@@ -10,15 +10,18 @@ library(tidyr)
 library(purrr)
 library(tsibble)
 library(forecast)
+library(maxLik)
+library(stats4)
+library(univariateML)
 ```
 
 ```{r}
 library(readxl)
-ip <-read_excel("git/gdp_distribution/DP_LIVE_09082023174326289.xlsx",col_types = c("text", "text", "text", 
+ip <-read_excel("DP_LIVE_09082023174326289.xlsx",col_types = c("text", "text", "text", 
          "text", "text", "text", "numeric", 
          "skip"))
 View(ip)
-usGDPC1_1_ <- read_excel("git/gdp_distribution/GDPC1 (1).xlsx")
+usGDPC1_1_ <- read_excel("GDPC1 (1).xlsx")
 View(usGDPC1_1_)
 ```
 ```{r}
@@ -48,11 +51,76 @@ usGDPC1_1_ts <- usGDPC1_1_ %>%
 
 
 ```
+
+
+
 ```{r}
-# Create the autocorrelation plot for lags from -6 to 6
-Acf(ip_ts$growthrate, lag.max = 6, plot = TRUE)
-# Create the autocorrelation plot for lags from -6 to 6
-Acf(usGDPC1_1_$growthrate, lag.max = 6,, plot = TRUE)
+calculate_acf_with_leads <- function(series, lag.max = 6, lead.max = 6) {
+  # Remove missing values
+  series <- na.omit(series)
+  
+  # Calculate ACF for lags
+  acf_lags <- acf(series, lag.max = lag.max, plot = FALSE)$acf
+  
+  # Calculate ACF for leads (by reversing the series and calculating lags)
+  acf_leads <- rev(acf(series[length(series):1], lag.max = lead.max, plot = FALSE)$acf)
+  
+  # Combine results, excluding the 0 lag from acf_lags as it's already included in acf_leads
+  combined_acf <- c(acf_leads, acf_lags[-1])
+  
+  return(combined_acf)
+}
+```
+
+
+```{r}
+lag_max = 6
+lead_max = 6
+
+# Calculate average growthrate by location
+average_growthrate_by_location <- ip_ts %>%
+    group_by(LOCATION) %>%
+    summarize(growthrate = mean(growthrate, na.rm = TRUE), .groups = "drop")
+
+# Apply the calculate_acf_with_leads function to the averaged series
+acf_with_leads_series1 <- calculate_acf_with_leads(average_growthrate_by_location$growthrate, lag.max = lag_max, lead.max = lead_max)
+
+# Apply the function to the other series
+acf_with_leads_series2 <- calculate_acf_with_leads(usGDPC1_1_ts$growthrate, lag.max = lag_max, lead.max = lead_max)
+
+# Define the lags and leads
+lags_and_leads <- (-lead_max:lag_max)
+
+# Plot the results for series 1
+plot(lags_and_leads, acf_with_leads_series1, type = "l", ylim = c(-1, 1), main = "Comparison of Two Autocorrelations", xlab = "Lag/Lead", ylab = "ACF", col = "black")
+
+# Add the line for series 2
+lines(lags_and_leads, acf_with_leads_series2, col = "red")
+
+# Add a legend
+legend("topright", legend = c("ip oecd", "usgdpgrowthrate"), col = c("black", "red"), lty = 1)
+
+
+```
+
+
+```{r}
+
+library(MASS)
+
+# Custom density function for Laplace distribution
+dlaplace <- function(x, location, scale) {
+  0.5 * exp(-abs(x - location) / scale) / scale
+}
+
+
+
+# Fit the Laplace distribution
+fit <- fitdistr(usGDPC1_1_ts$growthrate, dlaplace )
+
+# Print the results
+print(fit)
+
 ```
 
 
