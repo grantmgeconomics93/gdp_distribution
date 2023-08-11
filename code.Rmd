@@ -12,6 +12,7 @@ library(tsibble)
 library(forecast)
 library(maxLik)
 library(stats4)
+library(moments)
 library(univariateML)
 ```
 
@@ -77,11 +78,10 @@ calculate_acf_with_leads <- function(series, lag.max = 6, lead.max = 6) {
 lag_max = 6
 lead_max = 6
 
-# Calculate average growthrate by location
-average_growthrate_by_location <- ip_ts %>%
-    group_by(LOCATION) %>%
+# Calculate average growth rate by location and time
+average_growthrate_by_location <- ip %>%
+    group_by(TIME) %>%
     summarize(growthrate = mean(growthrate, na.rm = TRUE), .groups = "drop")
-
 # Apply the calculate_acf_with_leads function to the averaged series
 acf_with_leads_series1 <- calculate_acf_with_leads(average_growthrate_by_location$growthrate, lag.max = lag_max, lead.max = lead_max)
 
@@ -102,24 +102,56 @@ legend("topright", legend = c("ip oecd", "usgdpgrowthrate"), col = c("black", "r
 
 
 ```
+```{r}
+usgdp_list=usGDPC1_1_%>%drop_na%>%as.list(usGDPC1_1_$growthrate)
+
+
+```
+```{r}
+dlaplace_standard <- function(x, mu = 0, b = 1) {
+  if (b <= 0) return(NA)
+  (1 / (2 * b)) * exp(1)^(-abs(x - mu) / b)
+}
+
+fit_standard <- MASS::fitdistr(usgdp_list$growthrate, dlaplace_standard, start = list(mu = 0, b = 1.2))
+print(fit_standard)
+hist(usgdp_list$growthrate, freq = FALSE, main = "Fit of Laplace Distribution", xlab = "Growth Rate")
+curve(dlaplace_standard(x, mu = fit_standard$estimate['mu'], b = fit_standard$estimate['b']), add = TRUE, col = "red")
+legend("topright", legend = "Fitted Laplace", col = "red", lty = 1)
+
+
+```
+```{r}
+b_hat <- fit_standard$estimate[2]
+SE_b <- fit_standard$sd[2]
+Z <- (b_hat - 1) / SE_b
+p_value <- 2 * pnorm(-abs(Z))
+print(p_value)
+
+```
+```{r}
+
+```
 
 
 ```{r}
 
-library(MASS)
+#you are like I need to charge him more 
 
-# Custom density function for Laplace distribution
-dlaplace <- function(x, location, scale) {
-  0.5 * exp(-abs(x - location) / scale) / scale
+dlaplace <- function(x, m=0, a, b=1) {
+  if(a <= 0 || b <= 0) return(NA)
+  
+  gamma_val <- gamma(1 + 1/b)
+  part1 <- 1 / (2 * a * b^(1/b) * gamma_val)
+  part2 <- exp()^((-1/b) * abs((x - m) / a)^b)
+  
+  result <- part1 * part2
+  return(result)
 }
-
-
-
-# Fit the Laplace distribution
-fit <- fitdistr(usGDPC1_1_ts$growthrate, dlaplace )
-
-# Print the results
+usgdpgrowthrate <- # your data here
+fit <- MASS::fitdistr(usgdp_list$growthrate, dlaplace, start = list(m =mean(usgdp_list)  , a = 0, b = 1))
 print(fit)
+
 
 ```
 
