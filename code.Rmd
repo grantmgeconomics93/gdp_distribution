@@ -32,10 +32,10 @@ options(scipen = 999)
 ```{r}
 ip <- ip %>%
   group_by(LOCATION) %>%
-  mutate(growthrate = (Value - lag(Value, 1)) / lag(Value, 1))
+  mutate(growthrate = (Value - dplyr::lag(Value, 1)) / dplyr::lag(Value, 1))
 
 usGDPC1_1_=usGDPC1_1_ %>%
-  mutate(growthrate = ( realgdp- lag(realgdp, 1)) / lag(realgdp, 1))
+  mutate(growthrate = ( realgdp- dplyr::lag(realgdp, 1)) / dplyr::lag(realgdp, 1))
 
 ```
 ```{r}
@@ -76,29 +76,30 @@ calculate_acf_with_leads <- function(series, lag.max = 6, lead.max = 6) {
 
 ```{r}
 lag_max = 6
-lead_max = 6
-
-# Calculate average growth rate by location and time
-average_growthrate_by_location <- ip %>%
-    group_by(TIME) %>%
-    summarize(growthrate = mean(growthrate, na.rm = TRUE), .groups = "drop")
+ lead_max = 6
+ 
+ # Calculate average growth rate by location and time
+ average_growthrate_by_location <- ip_ts %>%
+     index_by(TIME) %>%
+     summarize(growthrate = mean(growthrate, na.rm = TRUE), .groups = "drop")
 # Apply the calculate_acf_with_leads function to the averaged series
-acf_with_leads_series1 <- calculate_acf_with_leads(average_growthrate_by_location$growthrate, lag.max = lag_max, lead.max = lead_max)
-
-# Apply the function to the other series
-acf_with_leads_series2 <- calculate_acf_with_leads(usGDPC1_1_ts$growthrate, lag.max = lag_max, lead.max = lead_max)
-
+ acf_with_leads_series1 <- calculate_acf_with_leads(average_growthrate_by_location$growthrate, lag.max = lag_max, lead.max = lead_max)
+ 
+ # Apply the function to the other series
+ acf_with_leads_series2 <- calculate_acf_with_leads(usGDPC1_1_ts$growthrate, lag.max = lag_max, lead.max = lead_max)
+ 
 # Define the lags and leads
-lags_and_leads <- (-lead_max:lag_max)
-
-# Plot the results for series 1
-plot(lags_and_leads, acf_with_leads_series1, type = "l", ylim = c(-1, 1), main = "Comparison of Two Autocorrelations", xlab = "Lag/Lead", ylab = "ACF", col = "black")
-
-# Add the line for series 2
-lines(lags_and_leads, acf_with_leads_series2, col = "red")
-
-# Add a legend
-legend("topright", legend = c("ip oecd", "usgdpgrowthrate"), col = c("black", "red"), lty = 1)
+ lags_and_leads <- (-lead_max:lag_max)
+ 
+ # Plot the results for series 1
+ plot(lags_and_leads, acf_with_leads_series1, type = "l", ylim = c(-1, 1), main = "Comparison of Two Autocorrelations", xlab = "Lag/Lead", ylab = "ACF", col = "black")
+ 
+ # Add the line for series 2
+ lines(lags_and_leads, acf_with_leads_series2, col = "red")
+ 
+ # Add a legend
+ legend("topright", legend = c("ip oecd", "usgdpgrowthrate"), col = c("black", "red"), lty = 1)
+ 
 
 
 ```
@@ -113,7 +114,7 @@ dlaplace_standard <- function(x, mu = 0, b = 1) {
   (1 / (2 * b)) * exp(1)^(-abs(x - mu) / b)
 }
 
-fit_standard <- MASS::fitdistr(usgdp_list$growthrate, dlaplace_standard, start = list(mu = 0, b = 1.2))
+fit_standard <- MASS::fitdistr(usgdp_list$growthrate, dlaplace_standard, start = list(mu = 0, b = 1))
 print(fit_standard)
 hist(usgdp_list$growthrate, freq = FALSE, main = "Fit of Laplace Distribution", xlab = "Growth Rate")
 curve(dlaplace_standard(x, mu = fit_standard$estimate['mu'], b = fit_standard$estimate['b']), add = TRUE, col = "red")
@@ -149,7 +150,7 @@ dlaplace <- function(x, m=0, a, b=1) {
   return(result)
 }
 usgdpgrowthrate <- # your data here
-fit <- MASS::fitdistr(usgdp_list$growthrate, dlaplace, start = list(m =mean(usgdp_list)  , a = 0, b = 1))
+fit <- MASS::fitdistr(usgdp_list$growthrate, dlaplace, start = list(m = 0.0085194258 ,a=1 ,b =0.0073293483 ))
 print(fit)
 
 
