@@ -104,57 +104,84 @@ lag_max = 6
 
 ```
 ```{r}
+#turn to list to get ready for mle
 usgdp_list=usGDPC1_1_%>%drop_na%>%as.list(usGDPC1_1_$growthrate)
 
 
 ```
 ```{r}
-dlaplace_standard <- function(x, mu = 0, b = 1) {
-  if (b <= 0) return(NA)
-  (1 / (2 * b)) * exp(1)^(-abs(x - mu) / b)
+#use simple mle to get rough estimates 
+dlaplace_standard <- function(x, mu = 0, a = 1) {
+  if (a <= 0) return(NA)
+  (1 / (2 * a)) * exp(1)^(-abs(x - mu) / a)
 }
 
-fit_standard <- MASS::fitdistr(usgdp_list$growthrate, dlaplace_standard, start = list(mu = 0, b = 1))
+fit_standard <- MASS::fitdistr(usgdp_list$growthrate, dlaplace_standard, start = list(mu = 0, a = 1))
 print(fit_standard)
-hist(usgdp_list$growthrate, freq = FALSE, main = "Fit of Laplace Distribution", xlab = "Growth Rate")
-curve(dlaplace_standard(x, mu = fit_standard$estimate['mu'], b = fit_standard$estimate['b']), add = TRUE, col = "red")
-legend("topright", legend = "Fitted Laplace", col = "red", lty = 1)
 
 
-```
-```{r}
-b_hat <- fit_standard$estimate[2]
-SE_b <- fit_standard$sd[2]
-Z <- (b_hat - 1) / SE_b
-p_value <- 2 * pnorm(-abs(Z))
-print(p_value)
-
-```
-```{r}
 
 ```
 
 
+
 ```{r}
-
-#you are like I need to charge him more 
-
-dlaplace <- function(x, m=0, a, b=1) {
+dlaplace_modified <- function(x, m, a, b) {
   if(a <= 0 || b <= 0) return(NA)
   
   gamma_val <- gamma(1 + 1/b)
   part1 <- 1 / (2 * a * b^(1/b) * gamma_val)
-  part2 <- exp()^((-1/b) * abs((x - m) / a)^b)
+  part2 <- exp((-1/b) * abs((x - m) / a)^b)
   
   result <- part1 * part2
   return(result)
 }
-usgdpgrowthrate <- # your data here
-fit <- MASS::fitdistr(usgdp_list$growthrate, dlaplace, start = list(m = 0.0085194258 ,a=1 ,b =0.0073293483 ))
+
+
+```
+
+
+```{r}
+
+
+#usgdpgrowthrate <- # your data here
+fit <- MASS::fitdistr(usgdp_list$growthrate, dlaplace_modified, start = list(m = .5 ,a=1 ,b =.7 ))
 print(fit)
 
 
 ```
+
+```{r}
+z_statistic <- (fit$estimate[3] - 1) / fit$sd[3] # Replace with your standard deviation value
+p_value <- 2 * (1 - pnorm(abs(z_statistic)))
+print(p_value)
+```
+```{r}
+# Number of bootstrap iterations
+n_boot <- 100
+
+# Original data
+original_data <- usgdp_list$growthrate
+
+# Function to estimate b from data
+estimate_b <- function(data) {
+    fit <- MASS::fitdistr(data, dlaplace_modified, start = list(m = fit$estimate['m'], a = fit$estimate['a'], b = fit$estimate['b']))
+    return(fit$estimate['b'])
+}
+
+# Bootstrap
+bootstrap_b <- replicate(n_boot, {
+    sample_data <- sample(original_data, size = length(original_data), replace = TRUE)
+    estimate_b(sample_data)
+})
+
+
+```
+```{r}
+# Perform a two-tailed t-test to test whether the mean of bootstrap_b is 1
+ t.test(bootstrap_b, alternative = "two.sided", mu = 1)
+```
+
 
 
 
