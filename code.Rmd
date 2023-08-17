@@ -152,16 +152,8 @@ print(fit)
 ```
 
 ```{r}
-z_statistic <- (fit$estimate[3] - 1) / fit$sd[3] # Replace with your standard deviation value
-p_value <- 2 * (1 - pnorm(abs(z_statistic)))
-print(p_value)
-```
-```{r}
-# Number of bootstrap iterations
-n_boot <- 100
 
-# Original data
-original_data <- usgdp_list$growthrate
+
 
 # Function to estimate b from data
 estimate_b <- function(data) {
@@ -170,18 +162,78 @@ estimate_b <- function(data) {
 }
 
 # Bootstrap
-bootstrap_b <- replicate(n_boot, {
-    sample_data <- sample(original_data, size = length(original_data), replace = TRUE)
+bootstrap_b <- replicate(4000, {
+    sample_data <- sample(usgdp_list$growthrate, size = length(original_data), replace = TRUE)
     estimate_b(sample_data)
 })
-
-
+#only a d Small samples give Gaussian curves 
+length(which(bootstrap_b>=2))
 ```
 ```{r}
 # Perform a two-tailed t-test to test whether the mean of bootstrap_b is 1
  t.test(bootstrap_b, alternative = "two.sided", mu = 1)
+#use ttest to see if b could be 2 which would be a normal distribution 
+ t.test(bootstrap_b, alternative = "less", mu = 2)
+
+```
+```{r}
+library(moments)
+```
+```{r}
+#test for skewness 
+agostino.test(usgdp_list$growthrate,alternative = "two.sided")
+#we can't reject the null so we can have confidence that the skew is marginal 
 ```
 
+```{r}
+
+pdf_plot <- ggplot(plot_data, aes(x = x_values, y = log(pdf_values))) +
+  geom_line(color = 'blue', linewidth = 2) + # Change here
+  geom_point(data = data.frame(x = usgdp_list$growthrate, y = rep(0, length(usgdp_list$growthrate))), aes(x = x, y = y), color = 'red') +
+  xlab('Growth Rates') +
+  ylab('Log Density') +
+  ggtitle('PDF of Modified Laplace Distribution') +
+  theme_minimal()
+
+# Printing the plot
+print(pdf_plot)
+
+```
+```{r}
+
+# Step 1: Define the CDF for the modified Laplace distribution
+plaplace_modified <- function(x, m, a, b) {
+  sapply(x, function(x_i) {
+    integrate(function(u) dlaplace_modified(u, m, a, b), -Inf, x_i)$value
+  })
+}
+
+# Step 2: Create a custom function capturing the parameters
+custom_cdf <- function(x) {
+  plaplace_modified(x, m = fit$estimate['m'], a = fit$estimate['a'], b = fit$estimate['b'])
+}
+
+# Step 3: Perform the KS test
+ks_result <- ks.test(usgdp_list$growthrate, custom_cdf)
+
+# Print the result
+print(ks_result)
+
+```
+
+```{r}
+
+
+# The CDF for the Kuiper test
+cdf_func <- function(x) plaplace_modified(x, fit$estimate["m"], fit$estimate["a"], fit$estimate["b"])
+
+# Applying the Kuiper test
+kuiper_result <- ks.test(usgdp_list$growthrate, cdf_func)
+
+# Print the result
+print(kuiper_result)
+
+```
 
 
 
