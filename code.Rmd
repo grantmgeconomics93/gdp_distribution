@@ -39,17 +39,14 @@ usGDPC1_1_=usGDPC1_1_ %>%
 
 ```
 ```{r}
+
 ip <- ip %>%
   mutate(TIME = yearmonth(TIME))
 
-ip_ts <- ip %>%
+ip <- ip %>%
   group_by(LOCATION) %>%
   slice(-1) %>%
   as_tsibble(key = "LOCATION", index = "TIME")
-usGDPC1_1_ts <- usGDPC1_1_ %>%
-  mutate(observation_date = as.Date(observation_date)) %>%
-  as_tsibble(index = "observation_date", regular = TRUE)
-
 
 ```
 
@@ -79,14 +76,15 @@ lag_max = 6
  lead_max = 6
  
  # Calculate average growth rate by location and time
- average_growthrate_by_location <- ip_ts %>%
-     index_by(TIME) %>%
-     summarize(growthrate = mean(growthrate, na.rm = TRUE), .groups = "drop")
+
+average_growthrate_by_time <- ip %>%
+  index_by(TIME) %>%
+  summarize(growthrate = mean(growthrate, na.rm = TRUE), .groups = "drop")
 # Apply the calculate_acf_with_leads function to the averaged series
- acf_with_leads_series1 <- calculate_acf_with_leads(average_growthrate_by_location$growthrate, lag.max = lag_max, lead.max = lead_max)
+ acf_with_leads_series1 <- calculate_acf_with_leads(average_growthrate_by_time$growthrate, lag.max = lag_max, lead.max = lead_max)
  
  # Apply the function to the other series
- acf_with_leads_series2 <- calculate_acf_with_leads(usGDPC1_1_ts$growthrate, lag.max = lag_max, lead.max = lead_max)
+ acf_with_leads_series2 <- calculate_acf_with_leads(usGDPC1_1_$growthrate, lag.max = lag_max, lead.max = lead_max)
  
 # Define the lags and leads
  lags_and_leads <- (-lead_max:lag_max)
@@ -126,12 +124,12 @@ print(fit_standard)
 
 
 ```{r}
-dlaplace_modified <- function(x, m, a, b) {
+dlaplace_modified <- function(x, mu, a, b) {
   if(a <= 0 || b <= 0) return(NA)
   
   gamma_val <- gamma(1 + 1/b)
   part1 <- 1 / (2 * a * b^(1/b) * gamma_val)
-  part2 <- exp((-1/b) * abs((x - m) / a)^b)
+  part2 <- exp((-1/b) * abs((x - mu) / a)^b)
   
   result <- part1 * part2
   return(result)
@@ -139,14 +137,37 @@ dlaplace_modified <- function(x, m, a, b) {
 
 
 ```
+```{r}
+
+#i tried to derive b pretending I didn't know it 
+# Objective function only for b
+objective_function_b <- function(b, data, m, a) {
+  log_density <- log(dlaplace_modified(data, m = m, a = a, b = b))
+  neg_log_likelihood <- -sum(log_density, na.rm = TRUE)
+  return(neg_log_likelihood)
+}
+
+# Take m and a from the fit_standard
+m <- fit_standard$estimate['mu']
+a <- fit_standard$estimate['a']
+
+# Optimization for b, given m and a
+result_b <- optim(1, fn = objective_function_b, data = usgdp_list$growthrate, m = m, a = a, method ="L-BFGS-B", lower = 0.6, upper = 3.3)
+
+# Resulting estimate for b
+b_estimate <- result_b$par
+print(b_estimate)
+
+```
 
 
 ```{r}
 
 
-#usgdpgrowthrate <- # your data here
-fit <- MASS::fitdistr(usgdp_list$growthrate, dlaplace_modified, start = list(m = .5 ,a=1 ,b =.7 ))
+#make sure the parameters mu and b doesn't change with the new b parameter and new distribution 
+fit <- MASS::fitdistr(usgdp_list$growthrate, dlaplace_modified, start = list(mu= fit_standard$estimate["mu"] ,a=fit_standard$estimate["a"] ,b =b_estimate ))
 print(fit)
+
 
 
 ```
@@ -157,23 +178,27 @@ print(fit)
 
 # Function to estimate b from data
 estimate_b <- function(data) {
-    fit <- MASS::fitdistr(data, dlaplace_modified, start = list(m = fit$estimate['m'], a = fit$estimate['a'], b = fit$estimate['b']))
+    fit <- MASS::fitdistr(data, dlaplace_modified, start = list(mu = fit$estimate['mu'], a = fit$estimate["a"], b = fit$estimate["b"]))
     return(fit$estimate['b'])
 }
 
+
 # Bootstrap
 bootstrap_b <- replicate(4000, {
-    sample_data <- sample(usgdp_list$growthrate, size = length(original_data), replace = TRUE)
-    estimate_b(sample_data)
+  sample_data <- sample(usgdp_list$growthrate, size = length(usgdp_list$growthrate), replace = TRUE)
+  estimate_b(sample_data)
 })
+
 #only a d Small samples give Gaussian curves 
 length(which(bootstrap_b>=2))
+#mean
+mean(bootstrap_b)
 ```
 ```{r}
 # Perform a two-tailed t-test to test whether the mean of bootstrap_b is 1
- t.test(bootstrap_b, alternative = "two.sided", mu = 1)
+ t.test(bootstrap_b, alternative = "less", mu = 1)
 #use ttest to see if b could be 2 which would be a normal distribution 
- t.test(bootstrap_b, alternative = "less", mu = 2)
+ t.test(bootstrap_b, alternative = "greater", mu = 2)
 
 ```
 ```{r}
@@ -186,7 +211,7 @@ agostino.test(usgdp_list$growthrate,alternative = "two.sided")
 ```
 
 ```{r}
-
+library(ggplot2)
 pdf_plot <- ggplot(plot_data, aes(x = x_values, y = log(pdf_values))) +
   geom_line(color = 'blue', linewidth = 2) + # Change here
   geom_point(data = data.frame(x = usgdp_list$growthrate, y = rep(0, length(usgdp_list$growthrate))), aes(x = x, y = y), color = 'red') +
@@ -200,38 +225,150 @@ print(pdf_plot)
 
 ```
 ```{r}
-
 # Step 1: Define the CDF for the modified Laplace distribution
-plaplace_modified <- function(x, m, a, b) {
+plaplace_modified <- function(x, mu, a, b) {
   sapply(x, function(x_i) {
-    integrate(function(u) dlaplace_modified(u, m, a, b), -Inf, x_i)$value
+    integrate(function(u) dlaplace_modified(u, mu, a, b), -Inf, x_i)$value
   })
 }
 
 # Step 2: Create a custom function capturing the parameters
 custom_cdf <- function(x) {
-  plaplace_modified(x, m = fit$estimate['m'], a = fit$estimate['a'], b = fit$estimate['b'])
+  plaplace_modified(x, m = fit$estimate['mu'], a = fit$estimate['a'], b = fit$estimate['b'])
 }
 
-# Step 3: Perform the KS test
-ks_result <- ks.test(usgdp_list$growthrate, custom_cdf)
 
+# Step 2: Create a custom function capturing the parameters For the hypnosis b=1
+custom_cdfone <- function(x) {
+  plaplace_modified(x, m = fit$estimate['mu'], a = fit$estimate['a'], b = 1)
+}
+```
+
+
+```{r}
+#  Perform the KS test We will be running a series of tests to ensure we picked a distractionsdistribution that match the data H=B
+ks_result <- ks.test(usgdp_list$growthrate, custom_cdf)
+#H=1
+ks_resultone <- ks.test(usgdp_list$growthrate, custom_cdfone)
 # Print the result
 print(ks_result)
+print(ks_resultone)
 
 ```
 
 ```{r}
 
 
-# The CDF for the Kuiper test
-cdf_func <- function(x) plaplace_modified(x, fit$estimate["m"], fit$estimate["a"], fit$estimate["b"])
 
 # Applying the Kuiper test
-kuiper_result <- ks.test(usgdp_list$growthrate, cdf_func)
-
+kuiper_result <- ks.test(usgdp_list$growthrate, custom_cdf)
+#H=1
+kuiper_resultone<- ks.test(usgdp_list$growthrate, custom_cdfone)
 # Print the result
 print(kuiper_result)
+print(kuiper_resultone)
+
+```
+```{r}
+library(goftest)
+#Cramer-Von Mises Test
+cvm=cvm.test(usgdp_list$growthrate,"custom_cdf")
+#H=1
+cvmone=cvm.test(usgdp_list$growthrate,"custom_cdfone")
+#print the results 
+print(cvm)
+print(cvmone)
+
+```
+```{r}
+# Get the log-likelihood of the null model (b = 1)
+logLik_null <- sum(log(sapply(usgdp_list$growthrate, custom_cdfone)))
+
+# Get the log-likelihood of the alternative model (b not restricted)
+logLik_alternative <- sum(log(sapply(usgdp_list$growthrate, custom_cdf)))
+
+# Compute the likelihood ratio test statistic
+lr_stat <- 2 * (logLik_alternative - logLik_null)
+
+# Find the p-value (chi-squared distribution with 1 degree of freedom)
+p_value <- 1 - pchisq(lr_stat, df = 1)
+
+# Print the result
+cat("Likelihood Ratio Test Statistic:", lr_stat, "\n")
+cat("p-value:", p_value, "\n")
+
+
+```
+
+```{r}
+
+
+# Loop through each unique location
+for (location in unique(ip$LOCATION)) {
+  
+  # Subset the data for this location
+  data <- ip[ip$LOCATION == location,]
+
+  # Estimate parameters using MLE or other methods
+  fit_standard <- MASS::fitdistr(data$growthrate, dlaplace_standard, start = list(mu = 0, a = 1))
+  fit <- MASS::fitdistr(data$growthrate, dlaplace_modified, start = list(mu = fit_standard$estimate["mu"], a = fit_standard$estimate["a"], b = b_estimate))
+
+  # Update the custom CDFs with the fitted parameters
+  custom_cdf <- function(x) {
+    plaplace_modified(x, m = fit$estimate['mu'], a = fit$estimate['a'], b = fit$estimate['b'])
+  }
+  custom_cdfone <- function(x) {
+    plaplace_modified(x, m = fit$estimate['mu'], a = fit$estimate['a'], b = 1)
+  }
+
+  
+
+  ks_result <- ks.test(data$growthrate, custom_cdf)$statistic
+  ks_resultone <- ks.test(data$growthrate, custom_cdfone)$statistic
+  kuiper_result <- kuiper.(data$growthrate, custom_cdf)$statistic
+  kuiper_resultone <- ks.test(data$growthrate, custom_cdfone)$statistic
+  # More tests go here...
+
+  # Store the results in the results data frame
+  result_tests <- data.frame(
+    LOCATION = location,
+    KS_Test = ks_result,
+    KS_Test_One = ks_resultone,
+    Kuiper_Test = kuiper_result,
+    Kuiper_Test_One = kuiper_resultone
+    # More columns for more tests...
+  )
+
+  # Append the results for this location to the result data frame
+   result_tests <- rbind(result_tests, result_row)
+}
+
+
+```
+```{r}
+
+
+# Create an empty dataframe to store results
+result_mle <- data.frame()
+
+# Loop through unique locations
+for (location in unique(ip$LOCATION)) {
+  # Subset the data for this location
+  data <- ip[ip$LOCATION == location,]
+  
+  # Estimate parameters using your defined methods
+  
+  fit <- MASS::fitdistr(data$growthrate, dlaplace_modified, start = list(mu = fit_standard$estimate["mu"], a = fit_standard$estimate["a"], b = 1))
+  
+  # Extract the estimated parameters
+  mu <- fit$estimate["mu"]
+  a <- fit$estimate["a"]
+  b <- fit$estimate["b"]
+  
+  # Append the results to the result dataframe
+  result_mle <- rbind(result_df, data.frame(LOCATION = location, mu = mu, a = a, b = b))
+}
+
 
 ```
 
