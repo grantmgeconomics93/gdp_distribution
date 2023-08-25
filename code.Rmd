@@ -252,12 +252,11 @@ custom_cdfoneUS <- function(x) {
 
 ```{r}
 #  Perform the KS test We will be running a series of tests to ensure we picked a distractionsdistribution that match the data H=B
-ks_result <- ks.test(usgdp_list$growthrate, "custom_cdfUS")
-#H=1
-ks_resultone <- ks.test(usgdp_list$growthrate, custom_cdfoneUS)
+ks_result <- ks.test(usgdp_list$growthrate, "custom_cdfUS",alternative = "two.sided")
+
 # Print the result
 print(ks_result)
-print(ks_resultone)
+
 
 ```
 
@@ -373,13 +372,14 @@ for (location_idx in 1:length(unique(ip$LOCATION))) {
   result_mle$p_value_b2[location_idx] <- calculate_p_value(2, result_mle$b[location_idx], se_b)
 }
 
-
+# Remove row names
+row.names(result_mle) <- NULL
 ```
 
 ```{r}
 
 library(nortest) # for lillie.test (Jacques Bera LM test)
-library(moments) # for jarque.bera.test (Jacques Bera ALM test)
+library(tseries) # for jarque.bera.test (Jacques Bera ALM test)
 
 tests_df <- data.frame(
   LOCATION = character(),
@@ -448,13 +448,123 @@ for (location in unique(ip$LOCATION)) {
   # Add the temporary results to the main results data frame
   tests_df <- rbind(tests_df, result_tests)
 }
-
+  
+# Remove row names
+row.names(result_mle) <- NULL
 
 ```
-
 ```{r}
+# Create a new dataframe for the new tests
+new_tests_df <- data.frame(
+  LOCATION = character(),
+  CVM_Statistic = numeric(),
+  CVM_P_Value = numeric(),
+  KS_Statistic = numeric(),
+  KS_P_Value = numeric(),
+  AD_Statistic = numeric(),
+  AD_P_Value = numeric(),
+  Kuiper_Statistic <- numeric(),
+  Kuiper_P_Value <- numeric(),
+  stringsAsFactors = FALSE
+)
+
+# Loop through each unique location
+for (location in unique(ip$LOCATION)) {
+  # Subset the data for this location
+  data <- ip[ip$LOCATION == location,]
+  
+  # Retrieve the estimated parameters for this location from result_mle
+  mu <- result_mle[result_mle$LOCATION == location, "mu"]
+  a <- result_mle[result_mle$LOCATION == location, "a"]
+  b <- result_mle[result_mle$LOCATION == location, "b"]
+  
+  # Custom CDFs
+  custom_cdfgen <- function(x) {
+    plaplace_modified(x, m = mu, a = a, b = b)
+  }
+  
+  custom_cdfgenone <- function(x) {
+    plaplace_modified(x, m = mu, a = a, b = 1)
+  }
+  
+  # Perform the CVM test
+  cvm_test <- goftest::cvm.test(data$growthrate, "custom_cdfgen")
+   
+  # Perform the KS test
+  ks_test <- ks.test(data$growthrate, "custom_cdfgen")
+  
+  # Perform the Anderson-Darling test
+  ad_test <- goftest::ad.test(data$growthrate, "custom_cdfgen")
+  
+  # Create a temporary data frame for this location
+  temp_new_tests <- data.frame(
+    LOCATION = location,
+    CVM_Statistic = cvm_test$statistic,
+    CVM_P_Value = cvm_test$p.value,
+    KS_Statistic = ks_test$statistic,
+    KS_P_Value = ks_test$p.value,
+    AD_Statistic = ad_test$statistic,
+    AD_P_Value = ad_test$p.value,
+    
+  )
+  
+  # Append to the new_tests_df
+  parameter_tests_df <- rbind(new_tests_df, temp_new_tests)
+}
+
+# This will give you a new dataframe (new_tests_df) with the results of the CVM, KS, and AD tests.
 
 ```
+```{r}
+# Initialize empty data frame to store Anderson-Darling results
+ad_results <- data.frame(
+  LOCATION = character(),
+  AndersonDarling = numeric(),
+  stringsAsFactors = FALSE
+)
+
+weight_function <- function(y) {
+  return(1)  # Define the weight function as needed
+}
+
+# Loop through each unique location
+for (location in unique(ip$LOCATION)) {
+  # Subset the data for this location
+  data <- ip[ip$LOCATION == location,]
+  
+  # Retrieve the estimated parameters for this location from result_mle
+  mu <- result_mle[result_mle$LOCATION == location, "mu"]
+  a <- result_mle[result_mle$LOCATION == location, "a"]
+  b <- result_mle[result_mle$LOCATION == location, "b"]
+  
+  # Define the custom CDFs with the retrieved parameters
+  custom_cdfgen <- function(x) {
+    plaplace_modified(x, m = mu, a = a, b = b)
+  }
+  
+  # Calculate Anderson-Darling statistic
+  n <- length(data$growthrate)
+  QAD_gen <- n * integrate(function(y) {
+    Fn_y <- mean(data$growthrate <= y)  # Empirical CDF
+    F_y <- custom_cdfgen(y)  # Theoretical CDF based on the fitted model
+    w_y <- weight_function(y)  # Weight function
+    return ((F_y - Fn_y)^2 * w_y)
+  }, lower = min(data$growthrate), upper = max(data$growthrate))$value
+  
+  # Add the results to the results data frame
+  ad_results <- rbind(ad_results, data.frame(
+    LOCATION = location,
+    AndersonDarling = QAD_gen
+  ))
+}
+
+# You may add bootstrap or simulation code here to obtain AndersonDarlingPValue
+# ...
+
+print(ad_results)
+
+```
+
 
 
 
