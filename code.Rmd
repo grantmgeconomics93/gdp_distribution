@@ -379,14 +379,12 @@ row.names(result_mle) <- NULL
 ```{r}
 
 library(nortest) # for lillie.test (Jacques Bera LM test)
-library(tseries) # for jarque.bera.test (Jacques Bera ALM test)
-
+library(tseries)# for jarque.bera.test (Jacques Bera ALM test)
+library(CircStats)#for kuiper test
 tests_df <- data.frame(
   LOCATION = character(),
   agostino_statistic = numeric(),
   agostino_p_value = numeric(),
-  CVM_Statistic = numeric(),
-  CVM_P_Value = numeric(),
   Shapiro_Wilk_W = numeric(),
   Shapiro_Wilk_P = numeric(),
   LM_Statistic = numeric(),
@@ -401,22 +399,7 @@ for (location in unique(ip$LOCATION)) {
   # Subset the data for this location
   data <- ip[ip$LOCATION == location,]
 
-  # Retrieve the estimated parameters for this location from result_mle
-  mu <- result_mle[result_mle$LOCATION == location, "mu"]
-  a <- result_mle[result_mle$LOCATION == location, "a"]
-  b <- result_mle[result_mle$LOCATION == location, "b"]
 
-  # Update the custom CDFs with the retrieved parameters
-  custom_cdfgen <- function(x) {
-    plaplace_modified(x, m = mu, a = a, b = b)
-  }
-
-  custom_cdfgenone <- function(x) {
-    plaplace_modified(x, m = mu, a = a, b = 1)
-  }
-
-  # Perform the CVM tests
-  cvm <- goftest::cvm.test(data$growthrate, custom_cdfgen)
 
   # Perform the Agostino test
   agostino <- agostino.test(data$growthrate, alternative = "two.sided")
@@ -435,8 +418,6 @@ for (location in unique(ip$LOCATION)) {
     LOCATION = location,
     agostino_statistic = agostino$statistic,
     agostino_p_value = agostino$p.value,
-    CVM_Statistic = cvm$statistic,
-    CVM_P_Value = cvm$p.value,
     Shapiro_Wilk_W = shapiro_wilk$statistic,
     Shapiro_Wilk_P = shapiro_wilk$p.value,
     LM_Statistic = lm_test$statistic,
@@ -450,10 +431,11 @@ for (location in unique(ip$LOCATION)) {
 }
   
 # Remove row names
-row.names(result_mle) <- NULL
+row.names(tests_df) <- NULL
 
 ```
 ```{r}
+
 # Create a new dataframe for the new tests
 new_tests_df <- data.frame(
   LOCATION = character(),
@@ -463,8 +445,6 @@ new_tests_df <- data.frame(
   KS_P_Value = numeric(),
   AD_Statistic = numeric(),
   AD_P_Value = numeric(),
-  Kuiper_Statistic <- numeric(),
-  Kuiper_P_Value <- numeric(),
   stringsAsFactors = FALSE
 )
 
@@ -483,18 +463,18 @@ for (location in unique(ip$LOCATION)) {
     plaplace_modified(x, m = mu, a = a, b = b)
   }
   
-  custom_cdfgenone <- function(x) {
-    plaplace_modified(x, m = mu, a = a, b = 1)
-  }
+ 
   
   # Perform the CVM test
-  cvm_test <- goftest::cvm.test(data$growthrate, "custom_cdfgen")
-   
-  # Perform the KS test
+  cvm_test <- goftest::cvm.test(data$growthrate,nullname = "custum_cdfgen",estimated = TRUE)
+  
+  # Perform the KS test (ignoring the ties warning)
   ks_test <- ks.test(data$growthrate, "custom_cdfgen")
   
   # Perform the Anderson-Darling test
   ad_test <- goftest::ad.test(data$growthrate, "custom_cdfgen")
+  
+  
   
   # Create a temporary data frame for this location
   temp_new_tests <- data.frame(
@@ -505,14 +485,17 @@ for (location in unique(ip$LOCATION)) {
     KS_P_Value = ks_test$p.value,
     AD_Statistic = ad_test$statistic,
     AD_P_Value = ad_test$p.value,
-    
+    stringsAsFactors = FALSE
   )
   
   # Append to the new_tests_df
-  parameter_tests_df <- rbind(new_tests_df, temp_new_tests)
+  new_tests_df <- rbind(new_tests_df, temp_new_tests)
 }
-
-# This will give you a new dataframe (new_tests_df) with the results of the CVM, KS, and AD tests.
+  
+# Remove row names
+row.names(new_tests_df) <- NULL
+# Check the results
+print(new_tests_df)
 
 ```
 ```{r}
@@ -561,7 +544,82 @@ for (location in unique(ip$LOCATION)) {
 # You may add bootstrap or simulation code here to obtain AndersonDarlingPValue
 # ...
 
-print(ad_results)
+fullfittingtest=merge(ad_results,tests_df,by = "LOCATION")
+
+```
+```{r}
+# Initialize a dataframe to store the results
+lr_test_results <- data.frame(
+  LOCATION = character(),
+  LR_Statistic_b1 = numeric(),
+  p_value_b1 = numeric(),
+  LR_Statistic_b2 = numeric(),
+  p_value_b2 = numeric(),
+  stringsAsFactors = FALSE
+)
+
+# Loop over each unique location
+for (location in unique(ip$LOCATION)) {
+  # Subset data
+  data <- ip[ip$LOCATION == location,]
+  
+  # Retrieve estimated parameters from result_mle
+  mu <- result_mle[result_mle$LOCATION == location, "mu"]
+  a <- result_mle[result_mle$LOCATION == location, "a"]
+  b <- result_mle[result_mle$LOCATION == location, "b"]
+  
+  # Custom CDFs
+  custom_cdf <- function(x) {
+    plaplace_modified(x, m = mu, a = a, b = b)
+  }
+  
+  custom_cdfone <- function(x) {
+    plaplace_modified(x, m = mu, a = a, b = 1)
+  }
+
+  custom_cdf2 <- function(x) {
+    plaplace_modified(x, m = mu, a = a, b = 2)
+  }
+  
+  # Compute log-likelihood for b=1
+  logLik_null1 <- sum(log(sapply(data$growthrate, custom_cdfone)))
+  logLik_alternative1 <- sum(log(sapply(data$growthrate, custom_cdf)))
+  
+  # Compute the likelihood ratio test statistic for b=1
+  lr_stat1 <- 2 * (logLik_alternative1 - logLik_null1)
+  
+  # Compute p-value for b=1
+  p_value1 <- 1 - pchisq(lr_stat1, df = 1)
+
+  # Compute log-likelihood for b=2
+  logLik_null2 <- sum(log(sapply(data$growthrate, custom_cdf2)))
+  logLik_alternative2 <- sum(log(sapply(data$growthrate, custom_cdf)))
+  
+  # Compute the likelihood ratio test statistic for b=2
+  lr_stat2 <- 2 * (logLik_alternative2 - logLik_null2)
+  
+  # Compute p-value for b=2
+  p_value2 <- 1 - pchisq(lr_stat2, df = 1)
+
+  # Temporary data frame to store the result for this location
+  temp_result <- data.frame(
+    LOCATION = location,
+    LR_Statistic_b1 = lr_stat1,
+    p_value_b1 = p_value1,
+    LR_Statistic_b2 = lr_stat2,
+    p_value_b2 = p_value2,
+  stringsAsFactors = FALSE
+  )
+  
+  # Append the results
+  lr_test_results <- rbind(lr_test_results, temp_result)
+}
+
+# Display the results
+print(lr_test_results)
+
+```
+```{r}
 
 ```
 
