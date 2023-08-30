@@ -620,6 +620,45 @@ print(lr_test_results)
 
 ```
 ```{r}
+library(tseries)  # For adf.test
+library(urca)     # For ur.pp
+adf_pp_results <- data.frame(
+  LOCATION = character(),
+  ADF_Statistic = numeric(),
+  ADF_P_Value = numeric(),
+  PP_Statistic = numeric(),
+  PP_P_Value = numeric(),
+  stringsAsFactors = FALSE
+)
+
+
+# Loop through each unique location
+for (location in unique(ip$LOCATION)) {
+  # Subset the data for this location
+  data <- ip[ip$LOCATION == location,]
+  
+  # Perform Augmented Dickey-Fuller Test
+  adf_test <- adf.test(data$growthrate)
+  
+  # Perform Phillips-Perron Test
+  pp_test <- ur.pp(data$growthrate, type="Z-alpha")
+  
+  # Create a temporary data frame for this location
+  temp_results <- data.frame(
+    LOCATION = location,
+    ADF_Statistic = adf_test$statistic,
+    ADF_P_Value = adf_test$p.value,
+    PP_Statistic = pp_test@teststat[1],
+    PP_P_Value = pp_test@cval[1],
+     stringsAsFactors = FALSE
+  )
+  
+  # Append to the adf_pp_results
+  adf_pp_results <- rbind(adf_pp_results, temp_results)
+}
+
+```
+```{r}
 
 ```
 
