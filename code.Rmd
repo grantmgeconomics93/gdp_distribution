@@ -659,6 +659,36 @@ for (location in unique(ip$LOCATION)) {
 
 ```
 ```{r}
+# Create an empty dataframe to store filtered data
+filtered_data <- data.frame()
+
+# Define Z-score threshold (usually 2 or 3 for 95% and 99% confidence)
+threshold <- 3.5
+# Loop through each unique LOCATION
+for (location in unique(ip$LOCATION)) {
+  # Subset data for the current LOCATION
+  data_subset <- ip[ip$LOCATION == location,]
+  
+  # Calculate mean and standard deviation for 'growthrate' for this LOCATION
+  mean_growthrate <- mean(data_subset$growthrate, na.rm = TRUE)
+  sd_growthrate <- sd(data_subset$growthrate, na.rm = TRUE)
+  
+  # Calculate Z-score
+  data_subset$Z_score <- abs((data_subset$growthrate - mean_growthrate) / sd_growthrate)
+  
+  # Remove outliers
+  data_no_outliers <- subset(data_subset, Z_score <= threshold)
+  
+  # Drop the Z-score column as it's no longer needed
+  data_no_outliers$Z_score <- NULL
+  
+  # Append the data_no_outliers to the filtered_data dataframe
+  filtered_data <- rbind(filtered_data, data_no_outliers)
+}
+
+
+```
+```{r}
 
 ```
 
