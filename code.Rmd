@@ -689,6 +689,81 @@ for (location in unique(ip$LOCATION)) {
 
 ```
 ```{r}
+# Initialize an empty data frame to store results
+result_mle_USA <- data.frame(
+  Start_Year = numeric(),
+  End_Year = numeric(),
+  mu = numeric(),
+  a = numeric(),
+  b = numeric()
+)
+
+# Define the location and years you are interested in
+location <- 'USA'
+start_year <- 1972
+end_year <- max(ip$TIME_numeric)
+time_increment <- 4  # add 4 years each time
+
+# Initialize start and end for the first iteration
+current_start <- start_year
+current_end <- start_year + 9  # initial 10-year period
+
+# Loop through data, adding 4-year increments
+while(current_end <= end_year) {
+  
+  # Subset the data for this location and time period using TIME_numeric
+  data_subset <- subset(ip, LOCATION == location & TIME_numeric >= current_start & TIME_numeric <= current_end)
+  
+  # Make sure we have data for this time period
+  if(nrow(data_subset) != 0) {
+    
+   # Fit the standard distribution
+  fit_standard_gen <- MASS::fitdistr(data_subset$growthrate, dlaplace_standard, start = list(mu = 0, a = 1))
+  
+  # Define the objective function for b
+  objective_function_b <- function(b, data, m, a) {
+    log_density <- log(dlaplace_modified(data, m = m, a = a, b = b))
+    neg_log_likelihood <- -sum(log_density, na.rm = TRUE)
+    return(neg_log_likelihood)
+  }
+  
+  # Take m and a from the fit_standard_gen
+  m <- fit_standard_gen$estimate['mu']
+  a <- fit_standard_gen$estimate['a']
+  
+  # Optimization for b, given m and a
+  result_bgen <- optim(1, fn = objective_function_b, data = data_subset$growthrate, m = m, a = a, method ="L-BFGS-B", lower = 0.6, upper = 3.3)
+  
+  # Resulting estimate for b
+  b_estimates <- result_bgen$par
+  
+  # Fit the modified distribution with the new b parameter
+  fit_gen <- MASS::fitdistr(data_subset$growthrate, dlaplace_modified, start = list(mu = m, a = a, b = b_estimates))
+  
+  # Extract the estimated parameters
+  mu <- fit_gen$estimate["mu"]
+  a <- fit_gen$estimate["a"]
+  b <- fit_gen$estimate["b"] 
+    
+    # Append the results for this period to the result_mle_USA dataframe
+    result_mle_USA <- rbind(result_mle_USA, data.frame(
+      Start_Year = current_start,
+      End_Year = current_end,
+      mu = mu,
+      a = a,
+      b = b
+    ))
+  }
+  
+  # Move the end year by 4
+  current_end <- current_end + time_increment
+}
+
+# Remove row names for a cleaner look
+row.names(result_mle_USA) <- NULL
+
+# View the results
+print(result_mle_USA)
 
 ```
 
