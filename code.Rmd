@@ -706,7 +706,7 @@ time_increment <- 4  # add 4 years each time
 
 # Initialize start and end for the first iteration
 current_start <- start_year
-current_end <- start_year + 9  # initial 10-year period
+current_end <- start_year + 4  # initial 10-year period
 
 # Loop through data, adding 4-year increments
 while(current_end <= end_year) {
@@ -764,6 +764,194 @@ row.names(result_mle_USA) <- NULL
 
 # View the results
 print(result_mle_USA)
+
+```
+```{r}
+# Initialize an empty data frame to store results
+result_mle_USAB <- data.frame(
+  Start_Year = numeric(),
+  End_Year = numeric(),
+  mu = numeric(),
+  a = numeric(),
+  b = numeric()
+)
+
+# Define the location and years you are interested in
+location <- 'USA'
+start_year <- 1972
+end_year <- max(ip$TIME_numeric)
+time_increment <- 10  # Looping in 10-year increments
+
+# Initialize start and end for the first iteration
+current_start <- start_year
+current_end <- start_year + 9  # initial 10-year period
+
+# Loop through data, moving forward 10 years at a time
+while(current_end <= end_year) {
+  
+  # Subset the data for this location and time period
+  data_subset <- subset(ip, LOCATION == location & TIME_numeric >= current_start & TIME_numeric <= current_end)
+  
+  # Make sure we have data for this time period
+  if(nrow(data_subset) != 0) {
+    
+    # Fit the standard distribution
+    fit_standard_gen <- MASS::fitdistr(data_subset$growthrate, dlaplace_standard, start = list(mu = 0, a = 1))
+    
+    # Extract mu and a from the fit_standard_gen
+    mu <- fit_standard_gen$estimate['mu']
+    a <- fit_standard_gen$estimate['a']
+    
+    # Define the objective function for b
+    objective_function_b <- function(b, data, m, a) {
+      log_density <- log(dlaplace_modified(data, m = m, a = a, b = b))
+      neg_log_likelihood <- -sum(log_density, na.rm = TRUE)
+      return(neg_log_likelihood)
+    }
+    
+    # Optimization for b
+    result_bgen <- optim(1, fn = objective_function_b, data = data_subset$growthrate, m = mu, a = a, method = "L-BFGS-B", lower = 0.6, upper = 3.3)
+    
+    # Extract b estimate from optimization result
+    b <- result_bgen$par
+    
+    # Append the results for this period to the result_mle_USAB dataframe
+    result_mle_USAB <- rbind(result_mle_USAB, data.frame(
+      Start_Year = current_start,
+      End_Year = current_end,
+      mu = mu,
+      a = a,
+      b = b
+    ))
+  }
+  
+  # Move the start to one year after the current_end and set the new end year
+  current_start <- current_end + 1
+  current_end <- current_start + 9
+}
+
+# Remove row names for a cleaner look
+row.names(result_mle_USAB) <- NULL
+
+# View the results
+print(result_mle_USAB)
+
+```
+```{r}
+# could not figure out 
+# Load the required package
+library(ReIns)
+
+# Initialize an empty data frame to store results
+result_hill <- data.frame(
+  Location = character(),
+  Hill_Estimate = numeric(),
+  stringsAsFactors = FALSE
+)
+
+# Loop through each unique location in the 'ip' data frame
+for (loc in unique(ip$LOCATION)) {
+  
+  # Subset the data for this location
+  data_subset <- subset(ip, LOCATION == loc)
+  
+  # Take the absolute value of the 'growthrate' column and add 1
+  data_subset$growthrate <- abs(data_subset$growthrate) + 1
+  
+  # Run the Hill estimator
+  hill_output <- tryCatch(
+    Hill(data_subset$growthrate, k = TRUE, logk = FALSE, plot = FALSE),
+    error = function(e) return(NULL)
+  )
+  
+  # Check if Hill estimator was successful
+  if (!is.null(hill_output) && !is.null(hill_output$alpha)) {
+    
+    # Extract the Hill estimate
+    hill_estimate <- hill_output$alpha
+    
+    # Append the results for this location to the result_hill dataframe
+    result_hill <- rbind(result_hill, data.frame(
+      Location = loc,
+      Hill_Estimate = hill_estimate
+    ))
+  } else {
+    # Optionally, print a warning message if Hill estimator was unsuccessful for this location
+    cat("Warning: Hill estimator unsuccessful for location", loc, "\n")
+  }
+}
+
+# Remove row names for a cleaner look
+row.names(result_hill) <- NULL
+
+# View the results
+print(result_hill)
+
+
+
+```
+```{r}
+# Define the function for Student's t-distribution PDF
+pdf_student_t <- function(t, nu) {
+  # Calculate the Gamma function terms
+  gamma_term1 <- gamma((nu + 1) / 2)
+  gamma_term2 <- gamma(nu / 2)
+  
+  # Calculate the constant in front of the formula
+  constant <- gamma_term1 / (sqrt(nu * pi) * gamma_term2)
+  
+  # Calculate the main expression
+  main_expr <- (1 + (t^2 / nu))^(-((nu + 1) / 2))
+  
+  # Calculate the full PDF value
+  f_t <- constant * main_expr
+  
+  return(f_t)
+}
+
+
+```
+
+```{r}
+# Load required package
+library(MASS)
+
+# Initialize an empty data frame to store results
+result_students_t <- data.frame(
+  Location = character(),
+  df = numeric(),
+  m = numeric(),
+  s = numeric(),
+  stringsAsFactors = FALSE
+)
+
+# Loop through each unique location in the 'ip' data frame
+for (loc in unique(ip$LOCATION)) {
+  # Subset the data for this location
+  data_subset <- subset(ip, LOCATION == loc)
+  
+  # Fit the Student's t-distribution
+  fit <- MASS::fitdistr(data_subset$growthrate, "pdf_student_t")
+  
+  # Extract parameters (modify this based on what specifically you want from fit)
+  df_parameter <- fit$estimate[1]
+  m_parameter <- fit$estimate[2]
+  s_parameter <- fit$estimate[3]
+  
+  # Append the results for this location to the result_students_t dataframe
+  result_students_t <- rbind(result_students_t, data.frame(
+    Location = loc,
+    df = df_parameter,
+    m = m_parameter,
+    s = s_parameter
+  ))
+}
+
+# Remove row names for a cleaner look
+row.names(result_students_t) <- NULL
+
+# View the results
+print(result_students_t)
 
 ```
 
