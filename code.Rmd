@@ -891,17 +891,16 @@ print(result_hill)
 
 ```
 ```{r}
-# Define the function for Student's t-distribution PDF
-pdf_student_t <- function(t, nu) {
+pdf_student_t <- function(t, d, l, v) {
   # Calculate the Gamma function terms
-  gamma_term1 <- gamma((nu + 1) / 2)
-  gamma_term2 <- gamma(nu / 2)
+  gamma_term1 <- gamma((v + 1) / 2)
+  gamma_term2 <- d * gamma(v / 2)
   
   # Calculate the constant in front of the formula
-  constant <- gamma_term1 / (sqrt(nu * pi) * gamma_term2)
+  constant <- gamma_term1 / (sqrt(v * pi) * gamma_term2)
   
   # Calculate the main expression
-  main_expr <- (1 + (t^2 / nu))^(-((nu + 1) / 2))
+  main_expr <- (1 + ((1/v) * ((t-l) / d)^2))^(-((v + 1) / 2))
   
   # Calculate the full PDF value
   f_t <- constant * main_expr
@@ -911,19 +910,79 @@ pdf_student_t <- function(t, nu) {
 
 
 ```
+```{r}
+
+pcustom_student_t <- function(x, d, l, v) {
+  sapply(x, function(x_i) {
+    integrate(function(u) pdf_student_t(u, d, l, v), -Inf, x_i)$value
+  })
+}
+
+# Step 2: Create a custom function capturing the parameters
+ cdf_student_t<- function(x) {
+  pcustom_student_t(x, 
+                     
+                    d = fit$estimate['d'], 
+                    l = fit$estimate['l'],
+                    v = fit$estimate['v'])
+}
+
+```
+```{r}
+library(MASS)
+ fit2=fitdistr(ip_usa$growthrate, "t", 
+                 start = list(m = mean(ip_usa$growthrate), s = sd(ip_usa$growthrate), df = 3), 
+                 method = "L-BFGS-B", 
+                 lower = c(-3, 0.001, 1),
+                 upper = c(3, 3, 30))
+ objective_function <- function(params, data) {
+  d <- params[1]
+  l <- params[2]
+  v <- params[3]
+  
+  log_density <- log(pdf_student_t(data, d, l, v))
+  return(-sum(log_density, na.rm = TRUE))}
+ optim(
+  par = c(d = fit2$estimate["m"], l = fit2$estimate["s"], v = fit2$estimate["df"]),  # use fitted values here
+  fn = objective_function,
+  data = ip_usa$growthrate,
+  method = "L-BFGS-B",
+  lower = c(-3, 0.001, 1),
+  upper = c(3, 3, 30)
+)
+
+
+```
+```{r}
+start_params <- c( d = 1, l = 0, v = 1)  # initial guesses
+  fit <- optim(par = start_params, fn = objective_function
+```
 
 ```{r}
-# Load required package
-library(MASS)
-
 # Initialize an empty data frame to store results
 result_students_t <- data.frame(
   Location = character(),
-  df = numeric(),
-  m = numeric(),
-  s = numeric(),
+ 
+  d = numeric(),
+  l = numeric(),
+  v = numeric(),
   stringsAsFactors = FALSE
 )
+
+objective_function <- function(params, data) {
+  d <- params[1]
+  l <- params[2]
+  v <- params[3]
+  
+  log_density <- log(pdf_student_t(data, d, l, v))
+  
+  if (any(is.nan(log_density))) {
+    print(paste("NaN produced with parameters: d =", d, ", l =", l, ", v =", v))
+  }
+  
+  return(-sum(log_density, na.rm = TRUE))
+}
+
 
 # Loop through each unique location in the 'ip' data frame
 for (loc in unique(ip$LOCATION)) {
@@ -931,19 +990,22 @@ for (loc in unique(ip$LOCATION)) {
   data_subset <- subset(ip, LOCATION == loc)
   
   # Fit the Student's t-distribution
-  fit <- MASS::fitdistr(data_subset$growthrate, "pdf_student_t")
+  start_params <- c( d = 1, l = 0, v = 1)  # initial guesses
+  fit <- optim(par = start_params, fn = objective_function, data = data_subset$growthrate)
   
-  # Extract parameters (modify this based on what specifically you want from fit)
-  df_parameter <- fit$estimate[1]
-  m_parameter <- fit$estimate[2]
-  s_parameter <- fit$estimate[3]
+  # Extract fitted parameters
   
-  # Append the results for this location to the result_students_t dataframe
+  d_fitted <- fit$par[1]
+  l_fitted <- fit$par[2]
+  v_fitted <- fit$par[3]
+  
+  # Append the results for this location to the result dataframe
   result_students_t <- rbind(result_students_t, data.frame(
     Location = loc,
-    df = df_parameter,
-    m = m_parameter,
-    s = s_parameter
+    
+    d = d_fitted,
+    l = l_fitted,
+    v = v_fitted
   ))
 }
 
@@ -952,6 +1014,10 @@ row.names(result_students_t) <- NULL
 
 # View the results
 print(result_students_t)
+
+
+```
+```{r}
 
 ```
 
