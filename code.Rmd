@@ -891,21 +891,21 @@ print(result_hill)
 
 ```
 ```{r}
-pdf_student_t <- function(t, d, l, v) {
+pdf_student_t <- function(x, d, l, v) {
   # Calculate the Gamma function terms
   gamma_term1 <- gamma((v + 1) / 2)
-  gamma_term2 <- d * gamma(v / 2)
+  gamma_term2 <- gamma(v / 2)
   
   # Calculate the constant in front of the formula
-  constant <- gamma_term1 / (sqrt(v * pi) * gamma_term2)
+  constant <- gamma_term1 / (sqrt(v * pi) *d* gamma_term2)
   
   # Calculate the main expression
-  main_expr <- (1 + ((1/v) * ((t-l) / d)^2))^(-((v + 1) / 2))
+  main_expr <- (1 + ((1 / v) * ((x - l) / d)^2))^(-((v + 1) / 2))
   
   # Calculate the full PDF value
-  f_t <- constant * main_expr
+  pdf_value <- constant * main_expr
   
-  return(f_t)
+  return(pdf_value)  # Add this line to return the calculated value
 }
 
 
@@ -933,87 +933,82 @@ library(MASS)
  fit2=fitdistr(ip_usa$growthrate, "t", 
                  start = list(m = mean(ip_usa$growthrate), s = sd(ip_usa$growthrate), df = 3), 
                  method = "L-BFGS-B", 
-                 lower = c(-3, 0.001, 1),
-                 upper = c(3, 3, 30))
+                 lower = c(-3, 0.0001, 1),
+                 upper = c(3, 3, 10))
  objective_function <- function(params, data) {
   d <- params[1]
   l <- params[2]
   v <- params[3]
   
   log_density <- log(pdf_student_t(data, d, l, v))
-  return(-sum(log_density, na.rm = TRUE))}
+  return(-sum(log_density))}
  optim(
   par = c(d = fit2$estimate["m"], l = fit2$estimate["s"], v = fit2$estimate["df"]),  # use fitted values here
   fn = objective_function,
   data = ip_usa$growthrate,
-  method = "L-BFGS-B",
-  lower = c(-3, 0.001, 1),
-  upper = c(3, 3, 30)
+   method = "Nelder-Mead", 
+                 #lower = c(-3, 0.0001, 1),
+                #upper = c(3, 3, 30)
+ 
 )
 
 
 ```
-```{r}
-start_params <- c( d = 1, l = 0, v = 1)  # initial guesses
-  fit <- optim(par = start_params, fn = objective_function
-```
+
 
 ```{r}
+
 # Initialize an empty data frame to store results
-result_students_t <- data.frame(
-  Location = character(),
- 
-  d = numeric(),
-  l = numeric(),
-  v = numeric(),
+results_df <- data.frame(
+  location = character(),
+  opt_m = numeric(),
+  opt_s = numeric(),
+  opt_df = numeric(),
   stringsAsFactors = FALSE
 )
 
-objective_function <- function(params, data) {
-  d <- params[1]
-  l <- params[2]
-  v <- params[3]
-  
-  log_density <- log(pdf_student_t(data, d, l, v))
-  
-  if (any(is.nan(log_density))) {
-    print(paste("NaN produced with parameters: d =", d, ", l =", l, ", v =", v))
-  }
-  
-  return(-sum(log_density, na.rm = TRUE))
-}
+# Unique locations
+unique_locations <- unique(ip$LOCATION)
 
-
-# Loop through each unique location in the 'ip' data frame
-for (loc in unique(ip$LOCATION)) {
-  # Subset the data for this location
-  data_subset <- subset(ip, LOCATION == loc)
+# Loop over each unique location
+for(loc in unique_locations) {
   
-  # Fit the Student's t-distribution
-  start_params <- c( d = 1, l = 0, v = 1)  # initial guesses
-  fit <- optim(par = start_params, fn = objective_function, data = data_subset$growthrate)
+  # Subset the data for the current location
+  ip_subset <- subset(ip, LOCATION== loc)
   
-  # Extract fitted parameters
   
-  d_fitted <- fit$par[1]
-  l_fitted <- fit$par[2]
-  v_fitted <- fit$par[3]
-  
-  # Append the results for this location to the result dataframe
-  result_students_t <- rbind(result_students_t, data.frame(
-    Location = loc,
     
-    d = d_fitted,
-    l = l_fitted,
-    v = v_fitted
-  ))
-}
+    # Fit initial distribution
+    
 
-# Remove row names for a cleaner look
-row.names(result_students_t) <- NULL
+    # Perform optimization
+    opt_result <- optim(
+      par = c(d = mean(ip_subset$growthrate), l =sd(ip_subset$growthrate), v = 3),
+      fn = objective_function,
+      data = ip_subset$growthrate,
+      method = "Nelder-Mead", 
+      #lower = c(-3, 0.0001, 1),
+      #upper = c(3, 3, 30)
+    )
+    
+    # Store results in data frame
+    new_row <- data.frame(
+      location = loc,
+      opt_m = opt_result$par[1],
+      opt_s = opt_result$par[2],
+      opt_df = opt_result$par[3],
+      stringsAsFactors = FALSE
+      
+    
+    )
+    
+    results_df <- bind_rows(results_df, new_row)
+  }
+    
 
-# View the results
-print(result_students_t)
+
+# View the results data frame
+print(results_df)
 
 
 ```
