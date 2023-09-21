@@ -904,8 +904,11 @@ pdf_student_t <- function(x, d, l, v) {
   
   # Calculate the full PDF value
   pdf_value <- constant * main_expr
+ 
   
-  return(pdf_value)  # Add this line to return the calculated value
+  
+  return(pdf_value)
+
 }
 
 
@@ -925,9 +928,17 @@ pcustom_student_t <- function(x, d, l, v) {
                     d = fit$estimate['d'], 
                     l = fit$estimate['l'],
                     v = fit$estimate['v'])
+   
+  
+  return(-sum(log_density))
+
 }
 
 ```
+```{r}
+ip_usa=ip[ip$LOCATION=="USA",]
+```
+
 ```{r}
 library(MASS)
  fit2=fitdistr(ip_usa$growthrate, "t", 
@@ -1013,8 +1024,120 @@ print(results_df)
 
 ```
 ```{r}
+# Custom cauchy function
+cauchy_custom_pdf <- function(x, delta, p) {
+  1 / (delta * pi) * (1 + ((x - p) / delta)^2)^(-1)
+}
+
 
 ```
+```{r}
+
+# Objective function for MLE
+ cauchy_custom_objective <- function(params, data) {
+  delta <- params[1]
+  p <- params[2]
+  
+  # Calculate likelihood
+  likelihood <- prod(cauchy_custom(data, delta, p))
+  
+  # Return negative log-likelihood because optim() looks for the minimum
+  return(-log(likelihood))
+}
+
+```
+```{r}
+cauchy_custom_cdf <- function(x, delta, p) {
+  sapply(x, function(x_i) {
+    integrate(function(u) cauchy_custom_pdf(u, delta, p), -Inf, x_i)$value
+  })
+}
+
+```
+
+```{r}
+#test optional techniques 
+# Assume ip_usa$growthrate contains the data you're interested in
+initial_values <- c(1, 0.5)  # Replace with sensible initial values
+
+optim(
+  par = initial_values,
+  fn = cauchy_costum_objective,
+  data = ip_usa$growthrate,
+  method = "Nelder-Mead"
+)
+
+
+
+```
+```{r}
+# Initialize an empty data frame to store results
+results_df <- data.frame()
+
+# Unique locations in your data
+unique_locations <- unique(ip$LOCATION)
+
+# Loop through each unique location
+for (loc in unique_locations) {
+  
+  # Subset data for the current location
+  ip_subset <- subset(ip, LOCATION == loc)
+  
+  # Initial parameter estimates
+  initial_values <- c(delta = 1, p = 0.5)
+  
+  # Perform optimization for the current location
+  opt_result <- optim(
+    par = initial_values,
+    fn = cauchy_costum_objective,
+    data = ip_subset$growthrate,
+    method = "Nelder-Mead"
+  )
+  
+  
+    # Perform goodness-of-fit tests
+  cvm_test <- cvm.test(ip_subset$growthrate, cauchy_custom)
+  ks_test <- ks.test(ip_subset$growthrate, cauchy_custom)
+  ad_test <- ad.test(ip_subset$growthrate, cauchy_custom)
+  
+  # Extract test results
+  cvm_stat = cvm_test$statistic
+  cvm_pval = cvm_test$p.value
+  ks_stat = ks_test$statistic
+  ks_pval = ks_test$p.value
+  ad_stat = ad_test$statistic
+  ad_pval = ad_test$p.value
+  
+  # Create a new row for results
+  new_row <- data.frame(
+    LOCATION = loc,
+    Opt_Param1 = opt_result$par[1],
+    Opt_Param2 = opt_result$par[2],
+    CVM_Statistic = cvm_stat,
+    CVM_P_Value = cvm_pval,
+    KS_Statistic = ks_stat,
+    KS_P_Value = ks_pval,
+    AD_Statistic = ad_stat,
+    AD_P_Value = ad_pval,
+    stringsAsFactors = FALSE
+  )
+  
+  # Append the new row to the results data frame
+  cauthy <- rbind(cauthy, new_row)
+}
+
+# View the collected results
+print(cauthy)
+
+
+
+
+
+
+
+
+```
+
 
 
 
