@@ -184,7 +184,7 @@ estimate_b <- function(data) {
 
 
 # Bootstrap
-bootstrap_b <- replicate(100, {
+bootstrap_b <- replicate(4000, {
   sample_data <- sample(usgdp_list$growthrate, size = length(usgdp_list$growthrate), replace = TRUE)
   estimate_b(sample_data)
 })
@@ -274,6 +274,7 @@ goftest::cvm.test(usgdp_list$growthrate,"custom_cdfUS",nullname = "custom_cdfone
 
 ```
 ```{r}
+#check please 
 # Get the log-likelihood of the null model (b = 1)
 logLik_null <- sum(log(sapply(usgdp_list$growthrate, custom_cdfoneUS)))
 
@@ -432,6 +433,8 @@ for (location in unique(ip$LOCATION)) {
   
 # Remove row names
 row.names(tests_df) <- NULL
+first_tests <- tests_df
+
 
 ```
 ```{r}
@@ -496,57 +499,56 @@ for (location in unique(ip$LOCATION)) {
 row.names(new_tests_df) <- NULL
 # Check the results
 print(new_tests_df)
+Laplacefittest=new_tests_df
 
 ```
 ```{r}
-# Initialize empty data frame to store Anderson-Darling results
-ad_results <- data.frame(
-  LOCATION = character(),
-  AndersonDarling = numeric(),
-  stringsAsFactors = FALSE
-)
+# Create an empty list to store individual data frames
+list_ad_results <- list()
 
-weight_function <- function(y) {
-  return(1)  # Define the weight function as needed
-}
+# Calculate n and min_growrate once to reuse later
+n <- length(data$growthrate)
+min_growrate <- min(data$growthrate)
 
-# Loop through each unique location
-for (location in unique(ip$LOCATION)) {
-  # Subset the data for this location
-  data <- ip[ip$LOCATION == location,]
-  
-  # Retrieve the estimated parameters for this location from result_mle
+# Function to compute Anderson-Darling statistic for a given location
+compute_QAD_gen <- function(location) {
+  # Subset data by location and get parameters
+  data_sub <- ip[ip$LOCATION == location,]
   mu <- result_mle[result_mle$LOCATION == location, "mu"]
   a <- result_mle[result_mle$LOCATION == location, "a"]
   b <- result_mle[result_mle$LOCATION == location, "b"]
   
-  # Define the custom CDFs with the retrieved parameters
   custom_cdfgen <- function(x) {
     plaplace_modified(x, m = mu, a = a, b = b)
   }
   
-  # Calculate Anderson-Darling statistic
-  n <- length(data$growthrate)
+  # Integrate
   QAD_gen <- n * integrate(function(y) {
-    Fn_y <- mean(data$growthrate <= y)  # Empirical CDF
-    F_y <- custom_cdfgen(y)  # Theoretical CDF based on the fitted model
-    w_y <- weight_function(y)  # Weight function
-    return ((F_y - Fn_y)^2 * w_y)
-  }, lower = min(data$growthrate), upper = max(data$growthrate))$value
+    Fn_y <- mean(data_sub$growthrate <= y)
+    F_y <- custom_cdfgen(y)
+    w_y <- weight_function(y)
+    return((F_y - Fn_y)^2 * w_y)
+  }, lower = min_growrate, upper = max(data_sub$growthrate))$value
   
-  # Add the results to the results data frame
-  ad_results <- rbind(ad_results, data.frame(
+  return(data.frame(
     LOCATION = location,
-    AndersonDarling = QAD_gen
+    AndersonDarling = QAD_gen,
+    stringsAsFactors = FALSE
   ))
 }
 
-# You may add bootstrap or simulation code here to obtain AndersonDarlingPValue
-# ...
 
-fullfittingtest=merge(ad_results,tests_df,by = "LOCATION")
+
+# Combine individual data frames into one
+ad_results <- do.call("rbind", list_ad_results)
+
+# Clear row names
+
+
 
 ```
+
+
 ```{r}
 # Initialize a dataframe to store the results
 lr_test_results <- data.frame(
@@ -689,35 +691,33 @@ for (location in unique(ip$LOCATION)) {
 
 ```
 ```{r}
-# Initialize an empty data frame to store results
-result_mle_USA <- data.frame(
-  Start_Year = numeric(),
-  End_Year = numeric(),
-  mu = numeric(),
-  a = numeric(),
-  b = numeric()
-)
+# Create a new dataframe with just the rows where LOCATION == "USA"
+usa_data <- subset(ip, LOCATION == "USA")
 
-# Define the location and years you are interested in
-location <- 'USA'
-start_year <- 1972
-end_year <- max(ip$TIME_numeric)
-time_increment <- 4  # add 4 years each time
+# Create a new column counting the rows
+usa_data$row_count <- seq_len(nrow(usa_data))
+
+# Initialize an empty dataframe to store results
+result_mle_USA <- data.frame(Start_Year = numeric(), End_Year = numeric(), mu = numeric(), a = numeric(), b = numeric())
+
+# Define the row increment
+row_increment <- 60
 
 # Initialize start and end for the first iteration
-current_start <- start_year
-current_end <- start_year + 4  # initial 10-year period
+current_start_row <- 1
+current_end_row <- row_increment
 
-# Loop through data, adding 4-year increments
-while(current_end <= end_year) {
+# Loop through the data, incrementing by 60 rows each time
+while (current_end_row <= nrow(usa_data)) {
   
-  # Subset the data for this location and time period using TIME_numeric
-  data_subset <- subset(ip, LOCATION == location & TIME_numeric >= current_start & TIME_numeric <= current_end)
+  # Subset the data for this row range
+  data_subset <- subset(usa_data, row_count >= current_start_row & row_count <= current_end_row)
   
-  # Make sure we have data for this time period
-  if(nrow(data_subset) != 0) {
-    
-   # Fit the standard distribution
+  # Get the minimum and maximum TIME within this subset
+  start_year <- min(data_subset$TIME)
+  end_year <- max(data_subset$TIME)
+  
+  # Fit the standard distribution
   fit_standard_gen <- MASS::fitdistr(data_subset$growthrate, dlaplace_standard, start = list(mu = 0, a = 1))
   
   # Define the objective function for b
@@ -732,31 +732,93 @@ while(current_end <= end_year) {
   a <- fit_standard_gen$estimate['a']
   
   # Optimization for b, given m and a
-  result_bgen <- optim(1, fn = objective_function_b, data = data_subset$growthrate, m = m, a = a, method ="L-BFGS-B", lower = 0.6, upper = 3.3)
+  result_bgen <- optim(1, fn = objective_function_b, data = data_subset$growthrate, m = m, a = a, method = "L-BFGS-B", lower = 0.6, upper = 3.3)
   
   # Resulting estimate for b
   b_estimates <- result_bgen$par
   
-  # Fit the modified distribution with the new b parameter
-  fit_gen <- MASS::fitdistr(data_subset$growthrate, dlaplace_modified, start = list(mu = m, a = a, b = b_estimates))
+  # Append the results for this row range to the result_mle_USA dataframe
+  result_mle_USA <- rbind(result_mle_USA, data.frame(
+    Start_Year = start_year,
+    End_Year = end_year,
+    mu = m,
+    a = a,
+    b = b_estimates
+  ))
   
-  # Extract the estimated parameters
-  mu <- fit_gen$estimate["mu"]
-  a <- fit_gen$estimate["a"]
-  b <- fit_gen$estimate["b"] 
-    
-    # Append the results for this period to the result_mle_USA dataframe
-    result_mle_USA <- rbind(result_mle_USA, data.frame(
-      Start_Year = current_start,
-      End_Year = current_end,
-      mu = mu,
-      a = a,
-      b = b
-    ))
+  # Move the row counter by 60
+  current_start_row <- current_end_row + 1
+  current_end_row <- current_end_row + row_increment
+}
+
+# Remove row names for a cleaner look
+row.names(result_mle_USA) <- NULL
+
+# View the results
+print(result_mle_USA)
+
+
+
+```
+```{r}
+# Create a new dataframe with just the rows where LOCATION == "USA"
+usa_data <- subset(ip, LOCATION == "USA")
+
+# Create a new column counting the rows
+usa_data$row_count <- seq_len(nrow(usa_data))
+
+# Initialize an empty dataframe to store results
+result_mle_USA <- data.frame(Start_Year = numeric(), End_Year = numeric(), mu = numeric(), a = numeric(), b = numeric())
+
+# Define the row increment
+row_increment <- 120
+
+# Initialize start and end for the first iteration
+current_start_row <- 1
+current_end_row <- row_increment
+
+# Loop through the data, incrementing by 120 rows each time
+while (current_end_row <= nrow(usa_data)) {
+  
+  # Subset the data for this row range
+  data_subset <- subset(usa_data, row_count >= current_start_row & row_count <= current_end_row)
+  
+  # Get the minimum and maximum TIME within this subset
+  start_year <- min(data_subset$TIME)
+  end_year <- max(data_subset$TIME)
+  
+  # Fit the standard distribution
+  fit_standard_gen <- MASS::fitdistr(data_subset$growthrate, dlaplace_standard, start = list(mu = 0, a = 1))
+  
+  # Define the objective function for b
+  objective_function_b <- function(b, data, m, a) {
+    log_density <- log(dlaplace_modified(data, m = m, a = a, b = b))
+    neg_log_likelihood <- -sum(log_density, na.rm = TRUE)
+    return(neg_log_likelihood)
   }
   
-  # Move the end year by 4
-  current_end <- current_end + time_increment
+  # Take m and a from the fit_standard_gen
+  m <- fit_standard_gen$estimate['mu']
+  a <- fit_standard_gen$estimate['a']
+  
+  # Optimization for b, given m and a
+  result_bgen <- optim(1, fn = objective_function_b, data = data_subset$growthrate, m = m, a = a, method = "L-BFGS-B", lower = 0.6, upper = 3.3)
+  
+  # Resulting estimate for b
+  b_estimates <- result_bgen$par
+  
+  # Append the results for this row range to the result_mle_USA dataframe
+  result_mle_USA <- rbind(result_mle_USA, data.frame(
+    Start_Year = start_year,
+    End_Year = end_year,
+    mu = m,
+    a = a,
+    b = b_estimates
+  ))
+  
+  # Move the row counter by 120
+  current_start_row <- current_end_row + 1
+  current_end_row <- current_end_row + row_increment
 }
 
 # Remove row names for a cleaner look
@@ -766,77 +828,7 @@ row.names(result_mle_USA) <- NULL
 print(result_mle_USA)
 
 ```
-```{r}
-# Initialize an empty data frame to store results
-result_mle_USAB <- data.frame(
-  Start_Year = numeric(),
-  End_Year = numeric(),
-  mu = numeric(),
-  a = numeric(),
-  b = numeric()
-)
 
-# Define the location and years you are interested in
-location <- 'USA'
-start_year <- 1972
-end_year <- max(ip$TIME_numeric)
-time_increment <- 10  # Looping in 10-year increments
-
-# Initialize start and end for the first iteration
-current_start <- start_year
-current_end <- start_year + 9  # initial 10-year period
-
-# Loop through data, moving forward 10 years at a time
-while(current_end <= end_year) {
-  
-  # Subset the data for this location and time period
-  data_subset <- subset(ip, LOCATION == location & TIME_numeric >= current_start & TIME_numeric <= current_end)
-  
-  # Make sure we have data for this time period
-  if(nrow(data_subset) != 0) {
-    
-    # Fit the standard distribution
-    fit_standard_gen <- MASS::fitdistr(data_subset$growthrate, dlaplace_standard, start = list(mu = 0, a = 1))
-    
-    # Extract mu and a from the fit_standard_gen
-    mu <- fit_standard_gen$estimate['mu']
-    a <- fit_standard_gen$estimate['a']
-    
-    # Define the objective function for b
-    objective_function_b <- function(b, data, m, a) {
-      log_density <- log(dlaplace_modified(data, m = m, a = a, b = b))
-      neg_log_likelihood <- -sum(log_density, na.rm = TRUE)
-      return(neg_log_likelihood)
-    }
-    
-    # Optimization for b
-    result_bgen <- optim(1, fn = objective_function_b, data = data_subset$growthrate, m = mu, a = a, method = "L-BFGS-B", lower = 0.6, upper = 3.3)
-    
-    # Extract b estimate from optimization result
-    b <- result_bgen$par
-    
-    # Append the results for this period to the result_mle_USAB dataframe
-    result_mle_USAB <- rbind(result_mle_USAB, data.frame(
-      Start_Year = current_start,
-      End_Year = current_end,
-      mu = mu,
-      a = a,
-      b = b
-    ))
-  }
-  
-  # Move the start to one year after the current_end and set the new end year
-  current_start <- current_end + 1
-  current_end <- current_start + 9
-}
-
-# Remove row names for a cleaner look
-row.names(result_mle_USAB) <- NULL
-
-# View the results
-print(result_mle_USAB)
-
-```
 ```{r}
 # could not figure out 
 # Load the required package
@@ -970,7 +962,7 @@ library(MASS)
 ```{r}
 
 # Initialize an empty data frame to store results
-results_df <- data.frame(
+studentT <- data.frame(
   location = character(),
   opt_m = numeric(),
   opt_s = numeric(),
@@ -1013,19 +1005,19 @@ for(loc in unique_locations) {
     
     )
     
-    results_df <- bind_rows(results_df, new_row)
+  studentT <- bind_rows(studentT, new_row)
   }
     
 
 
 # View the results data frame
-print(results_df)
+print(studentT)
 
 
 ```
 ```{r}
 # Custom cauchy function
-cauchy_custom_pdf <- function(x, delta, p) {
+cauchy_custom <- function(x, delta, p) {
   1 / (delta * pi) * (1 + ((x - p) / delta)^2)^(-1)
 }
 
@@ -1060,81 +1052,128 @@ cauchy_custom_cdf <- function(x, delta, p) {
 # Assume ip_usa$growthrate contains the data you're interested in
 initial_values <- c(1, 0.5)  # Replace with sensible initial values
 
-optim(
+opt_result_usa <- optim(
   par = initial_values,
-  fn = cauchy_costum_objective,
+  fn = cauchy_custom_objective,
   data = ip_usa$growthrate,
   method = "Nelder-Mead"
+    # Upper bounds for delta and p
 )
 
 
 
 ```
 ```{r}
-# Initialize an empty data frame to store results
-results_df <- data.frame()
+# Initialize an empty data frame to store results with column names
+cauchy_params <- data.frame(
+  LOCATION = character(),
+  delta_opt = numeric(),
+  p_opt = numeric(),
+  stringsAsFactors = FALSE
+)
 
 # Unique locations in your data
 unique_locations <- unique(ip$LOCATION)
 
 # Loop through each unique location
 for (loc in unique_locations) {
+  # Use tryCatch to skip errors
   
-  # Subset data for the current location
-  ip_subset <- subset(ip, LOCATION == loc)
-  
-  # Initial parameter estimates
-  initial_values <- c(delta = 1, p = 0.5)
-  
-  # Perform optimization for the current location
-  opt_result <- optim(
-    par = initial_values,
-    fn = cauchy_costum_objective,
-    data = ip_subset$growthrate,
-    method = "Nelder-Mead"
-  )
-  
-  
-    # Perform goodness-of-fit tests
-  cvm_test <- cvm.test(ip_subset$growthrate, cauchy_custom)
-  ks_test <- ks.test(ip_subset$growthrate, cauchy_custom)
-  ad_test <- ad.test(ip_subset$growthrate, cauchy_custom)
-  
-  # Extract test results
-  cvm_stat = cvm_test$statistic
-  cvm_pval = cvm_test$p.value
-  ks_stat = ks_test$statistic
-  ks_pval = ks_test$p.value
-  ad_stat = ad_test$statistic
-  ad_pval = ad_test$p.value
-  
-  # Create a new row for results
-  new_row <- data.frame(
-    LOCATION = loc,
-    Opt_Param1 = opt_result$par[1],
-    Opt_Param2 = opt_result$par[2],
-    CVM_Statistic = cvm_stat,
-    CVM_P_Value = cvm_pval,
-    KS_Statistic = ks_stat,
-    KS_P_Value = ks_pval,
-    AD_Statistic = ad_stat,
-    AD_P_Value = ad_pval,
-    stringsAsFactors = FALSE
-  )
-  
-  # Append the new row to the results data frame
-  cauthy <- rbind(cauthy, new_row)
+    # Subset data for the current location
+    ip_subset <- subset(ip, LOCATION == loc)
+    
+    # Initial parameter estimates
+    initial_values <- c(delta = 1, p = 0.5)
+    
+    # Perform optimization for the current location
+    opt_result <- optim(
+      par = initial_values,
+      fn = cauchy_custom_objective,
+      data = ip_subset$growthrate,
+      method = "Nelder-Mead"
+    )
+    
+    # Create a new row for results
+    new_row <- data.frame(
+      LOCATION = loc,
+      delta_opt = opt_result$par[1],
+      p_opt = opt_result$par[2],
+      stringsAsFactors = FALSE
+    )
+    
+    # Append the new row to the results data frame
+    cauchy_params <- rbind(cauchy_params, new_row)
+    
+  }
+
+
+
+
+
+
+
+```
+```{r}
+# Initialize an empty data frame to store test results
+cauchy_tests <- data.frame(
+  LOCATION = character(),
+  CVM_Statistic = numeric(),
+  CVM_P_Value = numeric(),
+  KS_Statistic = numeric(),
+  KS_P_Value = numeric(),
+  AD_Statistic = numeric(),
+  AD_P_Value = numeric(),
+  stringsAsFactors = FALSE
+)
+
+# Loop through each unique location
+for (loc in unique(ip$LOCATION)) {
+  tryCatch({
+     # Subset data for the current location
+    ip_subset <- subset(ip, LOCATION == loc)
+    
+    # Get the estimated parameters from cauchy_params
+    delta <- cauchy_params[cauchy_params$LOCATION == loc, "delta_opt"]
+    p <- cauchy_params[cauchy_params$LOCATION == loc, "p_opt"]
+    
+    # Custom CDF function using the estimated parameters
+    custom_cdfgen <- function(x) {
+      cauchy_custom_cdf(x, delta, p)
+    }
+    
+    # Perform the CVM test
+    cvm_test <- goftest::cvm.test(ip_subset$growthrate, nullname = "custom_cdfgen", estimated = TRUE)
+    
+    # Perform the KS test
+    ks_test <- ks.test(ip_subset$growthrate, "custom_cdfgen")
+    
+    # Perform the Anderson-Darling test
+    ad_test <- goftest::ad.test(ip_subset$growthrate, "custom_cdfgen")
+    
+    temp_new_tests <- data.frame(
+      LOCATION = loc,
+      CVM_Statistic = cvm_test$statistic,
+      CVM_P_Value = cvm_test$p.value,
+      KS_Statistic = ks_test$statistic,
+      KS_P_Value = ks_test$p.value,
+      AD_Statistic = ad_test$statistic,
+      AD_P_Value = ad_test$p.value,
+      stringsAsFactors = FALSE
+    )
+    
+    # Append to the cauchy_tests
+    cauchy_tests <- rbind(cauchy_tests, temp_new_tests)
+    
+  }, error = function(e) {
+    message("An error occurred for location ", loc, "; skipping to next location.")
+  })
 }
 
-# View the collected results
-print(cauthy)
+# Remove row names
+row.names(cauchy_tests) <- NULL
 
-
-
-
-
-
-
+# Check the results
+print(cauchy_tests)
 
 ```
 
