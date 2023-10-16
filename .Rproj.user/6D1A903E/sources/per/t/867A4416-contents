@@ -1,0 +1,1192 @@
+---
+title: "gdp_distribution"
+output: html_document
+date: "2023-08-09"
+---
+```{r}
+library(dplyr)
+library(stats)
+library(tidyr)
+library(purrr)
+library(tsibble)
+library(forecast)
+library(maxLik)
+library(stats4)
+library(moments)
+library(univariateML)
+```
+
+```{r}
+library(readxl)
+ip <-read_excel("DP_LIVE_09082023174326289.xlsx",col_types = c("text", "text", "text", 
+         "text", "text", "text", "numeric", 
+         "skip"))
+View(ip)
+usGDPC1_1_ <- read_excel("GDPC1 (1).xlsx")
+View(usGDPC1_1_)
+```
+```{r}
+options(scipen = 999)
+```
+
+```{r}
+ip <- ip %>%
+  group_by(LOCATION) %>%
+  mutate(growthrate = (Value - dplyr::lag(Value, 1)) / dplyr::lag(Value, 1))
+
+usGDPC1_1_=usGDPC1_1_ %>%
+  mutate(growthrate = ( realgdp- dplyr::lag(realgdp, 1)) / dplyr::lag(realgdp, 1))
+
+```
+```{r}
+
+ip <- ip %>%
+  mutate(TIME = yearmonth(TIME))
+
+ip <- ip %>%
+  group_by(LOCATION) %>%
+  slice(-1) %>%
+  as_tsibble(key = "LOCATION", index = "TIME")
+
+```
+
+
+
+```{r}
+calculate_acf_with_leads <- function(series, lag.max = 6, lead.max = 6) {
+  # Remove missing values
+  series <- na.omit(series)
+  
+  # Calculate ACF for lags
+  acf_lags <- acf(series, lag.max = lag.max, plot = FALSE)$acf
+  
+  # Calculate ACF for leads (by reversing the series and calculating lags)
+  acf_leads <- rev(acf(series[length(series):1], lag.max = lead.max, plot = FALSE)$acf)
+  
+  # Combine results, excluding the 0 lag from acf_lags as it's already included in acf_leads
+  combined_acf <- c(acf_leads, acf_lags[-1])
+  
+  return(combined_acf)
+}
+```
+
+
+```{r}
+lag_max = 6
+ lead_max = 6
+ 
+ # Calculate average growth rate by location and time
+
+average_growthrate_by_time <- ip %>%
+  index_by(TIME) %>%
+  summarize(growthrate = mean(growthrate, na.rm = TRUE), .groups = "drop")
+# Apply the calculate_acf_with_leads function to the averaged series
+ acf_with_leads_series1 <- calculate_acf_with_leads(average_growthrate_by_time$growthrate, lag.max = lag_max, lead.max = lead_max)
+ 
+ # Apply the function to the other series
+ acf_with_leads_series2 <- calculate_acf_with_leads(usGDPC1_1_$growthrate, lag.max = lag_max, lead.max = lead_max)
+ 
+# Define the lags and leads
+ lags_and_leads <- (-lead_max:lag_max)
+ 
+ # Plot the results for series 1
+ plot(lags_and_leads, acf_with_leads_series1, type = "l", ylim = c(-1, 1), main = "Comparison of Two Autocorrelations", xlab = "Lag/Lead", ylab = "ACF", col = "black")
+ 
+ # Add the line for series 2
+ lines(lags_and_leads, acf_with_leads_series2, col = "red")
+ 
+ # Add a legend
+ legend("topright", legend = c("ip oecd", "usgdpgrowthrate"), col = c("black", "red"), lty = 1)
+ 
+
+
+```
+```{r}
+#turn to list to get ready for mle
+usgdp_list=usGDPC1_1_%>%drop_na%>%as.list(usGDPC1_1_$growthrate)
+
+
+```
+```{r}
+#use simple mle to get rough estimates 
+dlaplace_standard <- function(x, mu = 0, a = 1) {
+  if (a <= 0) return(NA)
+  (1 / (2 * a)) * exp(1)^(-abs(x - mu) / a)
+}
+
+fit_standard <- MASS::fitdistr(usgdp_list$growthrate, dlaplace_standard, start = list(mu = 0, a = 1))
+print(fit_standard)
+
+
+
+```
+
+
+
+```{r}
+dlaplace_modified <- function(x, mu, a, b) {
+  if(a <= 0 || b <= 0) return(NA)
+  
+  gamma_val <- gamma(1 + 1/b)
+  part1 <- 1 / (2 * a * b^(1/b) * gamma_val)
+  part2 <- exp((-1/b) * abs((x - mu) / a)^b)
+  
+  result <- part1 * part2
+  return(result)
+}
+
+
+```
+```{r}
+
+#i tried to derive b pretending I didn't know it 
+# Objective function only for b
+objective_function_b <- function(b, data, m, a) {
+  log_density <- log(dlaplace_modified(data, m = m, a = a, b = b))
+  neg_log_likelihood <- -sum(log_density, na.rm = TRUE)
+  return(neg_log_likelihood)
+}
+
+# Take m and a from the fit_standard
+m <- fit_standard$estimate['mu']
+a <- fit_standard$estimate['a']
+
+# Optimization for b, given m and a
+result_b <- optim(1, fn = objective_function_b, data = usgdp_list$growthrate, m = m, a = a, method ="L-BFGS-B", lower = 0.6, upper = 3.3)
+
+# Resulting estimate for b
+b_estimate <- result_b$par
+print(b_estimate)
+
+```
+
+
+```{r}
+
+
+#make sure the parameters mu and b doesn't change with the new b parameter and new distribution 
+fit <- MASS::fitdistr(usgdp_list$growthrate, dlaplace_modified, start = list(mu= fit_standard$estimate["mu"] ,a=fit_standard$estimate["a"] ,b =b_estimate ))
+print(fit)
+
+
+
+```
+
+```{r}
+
+
+
+# Function to estimate b from data
+estimate_b <- function(data) {
+    fit <- MASS::fitdistr(data, dlaplace_modified, start = list(mu = fit$estimate['mu'], a = fit$estimate["a"], b = fit$estimate["b"]))
+    return(fit$estimate['b'])
+}
+
+
+# Bootstrap
+bootstrap_b <- replicate(4000, {
+  sample_data <- sample(usgdp_list$growthrate, size = length(usgdp_list$growthrate), replace = TRUE)
+  estimate_b(sample_data)
+})
+
+#only a d Small samples give Gaussian curves 
+length(which(bootstrap_b>=2))
+#mean
+mean(bootstrap_b)
+sd(bootstrap_b)
+se=mean(bootstrap_b)+(2*sd(bootstrap_b))*c(1,-1)
+```
+```{r}
+# Perform a two-tailed t-test to test whether the mean of bootstrap_b is 1
+ t.test(bootstrap_b, alternative = "two.sided", mu = 1)
+#use ttest to see if b could be 2 which would be a normal distribution 
+ t.test(bootstrap_b, alternative = "greater", mu = 2)
+
+```
+```{r}
+library(ggplot2)
+pdf_plot <- ggplot() +
+  stat_function(fun = dlaplace_modified, args = list(m = fit$estimate['mu'], a = fit$estimate['a'], b = fit$estimate['b']), geom = "line", color = 'blue') +
+  geom_point(data = data.frame(x = usgdp_list$growthrate, y = rep(0, length(usgdp_list$growthrate))), aes(x = x, y = y), color = 'red') +
+  xlab('Growth Rates') +
+  ylab('PDF') +
+  ggtitle('PDF of Modified Laplace Distribution') +
+  theme_minimal()
+
+# Display the plot
+pdf_plot
+
+
+```
+
+```{r}
+library(moments)
+```
+```{r}
+#test for skewness 
+agostino.test(usgdp_list$growthrate,alternative = "two.sided")
+#we can't reject the null so we can have confidence that the skew is marginal 
+```
+
+
+
+```{r}
+# Step 1: Define the CDF for the modified Laplace distribution
+plaplace_modified <- function(x, mu, a, b) {
+  sapply(x, function(x_i) {
+    integrate(function(u) dlaplace_modified(u, mu, a, b), -Inf, x_i)$value
+  })
+}
+
+# Step 2: Create a custom function capturing the parameters
+custom_cdfUS <- function(x) {
+  plaplace_modified(x, m = fit$estimate['mu'], a = fit$estimate['a'], b = fit$estimate['b'])
+}
+
+
+# Step 2: Create a custom function capturing the parameters For the hypnosis b=1
+custom_cdfoneUS <- function(x) {
+  plaplace_modified(x, m = fit$estimate['mu'], a = fit$estimate['a'], b = 1)
+}
+```
+
+```{r}
+#  Perform the KS test We will be running a series of tests to ensure we picked a distractionsdistribution that match the data H=B
+ks_result <- ks.test(usgdp_list$growthrate, "custom_cdfUS",alternative = "two.sided")
+
+# Print the result
+print(ks_result)
+
+
+```
+
+
+
+```{r}
+library(goftest)
+#Cramer-Von Mises Test
+goftest::cvm.test(usgdp_list$growthrate,"custom_cdfUS",nullname = "custom_cdfoneUS")
+#H=1
+
+#print the results 
+
+
+
+```
+```{r}
+#check please 
+# Get the log-likelihood of the null model (b = 1)
+logLik_null <- sum(log(sapply(usgdp_list$growthrate, custom_cdfoneUS)))
+
+# Get the log-likelihood of the alternative model (b not restricted)
+logLik_alternative <- sum(log(sapply(usgdp_list$growthrate, custom_cdfUS)))
+
+# Compute the likelihood ratio test statistic
+lr_stat <- 2 * (logLik_alternative - logLik_null)
+
+# Find the p-value (chi-squared distribution with 1 degree of freedom)
+p_value <- 1 - pchisq(lr_stat, df = 1)
+
+# Print the result
+cat("Likelihood Ratio Test Statistic:", lr_stat, "\n")
+cat("p-value:", p_value, "\n")
+
+
+```
+```{r}
+# Create an empty dataframe to store results
+result_mle <- data.frame()
+
+# Loop through unique locations
+for (location in unique(ip$LOCATION)) {
+  # Subset the data for this location
+  data <- ip[ip$LOCATION == location,]
+  
+  # Fit the standard distribution
+  fit_standard_gen <- MASS::fitdistr(data$growthrate, dlaplace_standard, start = list(mu = 0, a = 1))
+  
+  # Define the objective function for b
+  objective_function_b <- function(b, data, m, a) {
+    log_density <- log(dlaplace_modified(data, m = m, a = a, b = b))
+    neg_log_likelihood <- -sum(log_density, na.rm = TRUE)
+    return(neg_log_likelihood)
+  }
+  
+  # Take m and a from the fit_standard_gen
+  m <- fit_standard_gen$estimate['mu']
+  a <- fit_standard_gen$estimate['a']
+  
+  # Optimization for b, given m and a
+  result_bgen <- optim(1, fn = objective_function_b, data = data$growthrate, m = m, a = a, method ="L-BFGS-B", lower = 0.6, upper = 3.3)
+
+  # Resulting estimate for b
+  b_estimates <- result_bgen$par
+
+  # Fit the modified distribution with the new b parameter
+  fit_gen <- MASS::fitdistr(data$growthrate, dlaplace_modified, start = list(mu = m, a = a, b = b_estimates))
+  
+  # Extract the estimated parameters
+  mu <- fit_gen$estimate["mu"]
+  a <- fit_gen$estimate["a"]
+  b <- fit_gen$estimate["b"]
+  
+  # Append the results to the result dataframe
+  result_mle <- rbind(result_mle, data.frame(LOCATION = location, mu = mu, a = a, b = b))
+}
+# After your existing loop
+```
+
+
+```{r}
+# Calculating mean and standard deviation of b
+mean_b <- mean(result_mle$b)
+sd_b <- sd(result_mle$b)
+
+# Adding the new column with the calculated values
+result_mle$desired_values <- mean_b + (2 * sd_b) * c(1, -1)
+
+# Function to perform hypothesis testing
+calculate_p_value <- function(b_value, b_estimate, se) {
+  z_score <- abs(b_estimate - b_value) / se
+  p_value <- 2 * (1 - pnorm(z_score))
+  return(p_value)
+}
+
+# Performing the hypothesis tests and adding p-values to the dataframe
+
+# Create columns for the p-values
+result_mle$p_value_b1 <- NA
+result_mle$p_value_b2 <- NA
+
+# Loop through unique locations
+for (location_idx in 1:length(unique(ip$LOCATION))) {
+  location <- unique(ip$LOCATION)[location_idx]
+  # ... (rest of your existing code)
+  
+  # Extracting the standard error for b
+  se_b <- sqrt(diag(vcov(fit_gen))["b"])
+  
+  # P-value for b = 1
+  result_mle$p_value_b1[location_idx] <- calculate_p_value(1, result_mle$b[location_idx], se_b)
+  
+  # P-value for b = 2
+  result_mle$p_value_b2[location_idx] <- calculate_p_value(2, result_mle$b[location_idx], se_b)
+}
+
+# Remove row names
+row.names(result_mle) <- NULL
+```
+
+```{r}
+
+library(nortest) # for lillie.test (Jacques Bera LM test)
+library(tseries)# for jarque.bera.test (Jacques Bera ALM test)
+library(CircStats)#for kuiper test
+tests_df <- data.frame(
+  LOCATION = character(),
+  agostino_statistic = numeric(),
+  agostino_p_value = numeric(),
+  Shapiro_Wilk_W = numeric(),
+  Shapiro_Wilk_P = numeric(),
+  LM_Statistic = numeric(),
+  LM_P_Value = numeric(),
+  ALM_Statistic = numeric(),
+  ALM_P_Value = numeric(),
+  stringsAsFactors = FALSE
+)
+
+# Loop through each unique location
+for (location in unique(ip$LOCATION)) {
+  # Subset the data for this location
+  data <- ip[ip$LOCATION == location,]
+
+
+
+  # Perform the Agostino test
+  agostino <- agostino.test(data$growthrate, alternative = "two.sided")
+
+  # Perform Shapiro-Wilk test
+  shapiro_wilk <- shapiro.test(data$growthrate)
+
+  # Perform Jacques-Bera LM test
+  lm_test <- lillie.test(data$growthrate)
+
+  # Perform Jacques-Bera ALM test
+  alm_test <- jarque.bera.test(data$growthrate)
+
+  # Temporary results
+  result_tests <- data.frame(
+    LOCATION = location,
+    agostino_statistic = agostino$statistic,
+    agostino_p_value = agostino$p.value,
+    Shapiro_Wilk_W = shapiro_wilk$statistic,
+    Shapiro_Wilk_P = shapiro_wilk$p.value,
+    LM_Statistic = lm_test$statistic,
+    LM_P_Value = lm_test$p.value,
+    ALM_Statistic = alm_test$statistic,
+    ALM_P_Value = alm_test$p.value
+  )
+
+  # Add the temporary results to the main results data frame
+  tests_df <- rbind(tests_df, result_tests)
+}
+  
+# Remove row names
+row.names(tests_df) <- NULL
+first_tests <- tests_df
+
+
+```
+```{r}
+
+# Create a new dataframe for the new tests
+new_tests_df <- data.frame(
+  LOCATION = character(),
+  CVM_Statistic = numeric(),
+  CVM_P_Value = numeric(),
+  KS_Statistic = numeric(),
+  KS_P_Value = numeric(),
+  AD_Statistic = numeric(),
+  AD_P_Value = numeric(),
+  stringsAsFactors = FALSE
+)
+
+# Loop through each unique location
+for (location in unique(ip$LOCATION)) {
+  # Subset the data for this location
+  data <- ip[ip$LOCATION == location,]
+  
+  # Retrieve the estimated parameters for this location from result_mle
+  mu <- result_mle[result_mle$LOCATION == location, "mu"]
+  a <- result_mle[result_mle$LOCATION == location, "a"]
+  b <- result_mle[result_mle$LOCATION == location, "b"]
+  
+  # Custom CDFs
+  custom_cdfgen <- function(x) {
+    plaplace_modified(x, m = mu, a = a, b = b)
+  }
+  
+ 
+  
+  # Perform the CVM test
+  cvm_test <- goftest::cvm.test(data$growthrate,nullname = "custum_cdfgen",estimated = TRUE)
+  
+  # Perform the KS test (ignoring the ties warning)
+  ks_test <- ks.test(data$growthrate, "custom_cdfgen")
+  
+  # Perform the Anderson-Darling test
+  ad_test <- goftest::ad.test(data$growthrate, "custom_cdfgen")
+  
+  
+  
+  # Create a temporary data frame for this location
+  temp_new_tests <- data.frame(
+    LOCATION = location,
+    CVM_Statistic = cvm_test$statistic,
+    CVM_P_Value = cvm_test$p.value,
+    KS_Statistic = ks_test$statistic,
+    KS_P_Value = ks_test$p.value,
+    AD_Statistic = ad_test$statistic,
+    AD_P_Value = ad_test$p.value,
+    stringsAsFactors = FALSE
+  )
+  
+  # Append to the new_tests_df
+  new_tests_df <- rbind(new_tests_df, temp_new_tests)
+}
+  
+# Remove row names
+row.names(new_tests_df) <- NULL
+# Check the results
+print(new_tests_df)
+Laplacefittest=new_tests_df
+
+```
+```{r}
+# Create an empty list to store individual data frames
+list_ad_results <- list()
+
+# Calculate n and min_growrate once to reuse later
+n <- length(data$growthrate)
+min_growrate <- min(data$growthrate)
+
+# Function to compute Anderson-Darling statistic for a given location
+compute_QAD_gen <- function(location) {
+  # Subset data by location and get parameters
+  data_sub <- ip[ip$LOCATION == location,]
+  mu <- result_mle[result_mle$LOCATION == location, "mu"]
+  a <- result_mle[result_mle$LOCATION == location, "a"]
+  b <- result_mle[result_mle$LOCATION == location, "b"]
+  
+  custom_cdfgen <- function(x) {
+    plaplace_modified(x, m = mu, a = a, b = b)
+  }
+  
+  # Integrate
+  QAD_gen <- n * integrate(function(y) {
+    Fn_y <- mean(data_sub$growthrate <= y)
+    F_y <- custom_cdfgen(y)
+    w_y <- weight_function(y)
+    return((F_y - Fn_y)^2 * w_y)
+  }, lower = min_growrate, upper = max(data_sub$growthrate))$value
+  
+  return(data.frame(
+    LOCATION = location,
+    AndersonDarling = QAD_gen,
+    stringsAsFactors = FALSE
+  ))
+}
+
+
+
+# Combine individual data frames into one
+ad_results <- do.call("rbind", list_ad_results)
+
+# Clear row names
+
+
+
+```
+
+
+```{r}
+# Initialize a dataframe to store the results
+lr_test_results <- data.frame(
+  LOCATION = character(),
+  LR_Statistic_b1 = numeric(),
+  p_value_b1 = numeric(),
+  LR_Statistic_b2 = numeric(),
+  p_value_b2 = numeric(),
+  stringsAsFactors = FALSE
+)
+
+# Loop over each unique location
+for (location in unique(ip$LOCATION)) {
+  # Subset data
+  data <- ip[ip$LOCATION == location,]
+  
+  # Retrieve estimated parameters from result_mle
+  mu <- result_mle[result_mle$LOCATION == location, "mu"]
+  a <- result_mle[result_mle$LOCATION == location, "a"]
+  b <- result_mle[result_mle$LOCATION == location, "b"]
+  
+  # Custom CDFs
+  custom_cdf <- function(x) {
+    plaplace_modified(x, m = mu, a = a, b = b)
+  }
+  
+  custom_cdfone <- function(x) {
+    plaplace_modified(x, m = mu, a = a, b = 1)
+  }
+
+  custom_cdf2 <- function(x) {
+    plaplace_modified(x, m = mu, a = a, b = 2)
+  }
+  
+  # Compute log-likelihood for b=1
+  logLik_null1 <- sum(log(sapply(data$growthrate, custom_cdfone)))
+  logLik_alternative1 <- sum(log(sapply(data$growthrate, custom_cdf)))
+  
+  # Compute the likelihood ratio test statistic for b=1
+  lr_stat1 <- 2 * (logLik_alternative1 - logLik_null1)
+  
+  # Compute p-value for b=1
+  p_value1 <- 1 - pchisq(lr_stat1, df = 1)
+
+  # Compute log-likelihood for b=2
+  logLik_null2 <- sum(log(sapply(data$growthrate, custom_cdf2)))
+  logLik_alternative2 <- sum(log(sapply(data$growthrate, custom_cdf)))
+  
+  # Compute the likelihood ratio test statistic for b=2
+  lr_stat2 <- 2 * (logLik_alternative2 - logLik_null2)
+  
+  # Compute p-value for b=2
+  p_value2 <- 1 - pchisq(lr_stat2, df = 1)
+
+  # Temporary data frame to store the result for this location
+  temp_result <- data.frame(
+    LOCATION = location,
+    LR_Statistic_b1 = lr_stat1,
+    p_value_b1 = p_value1,
+    LR_Statistic_b2 = lr_stat2,
+    p_value_b2 = p_value2,
+  stringsAsFactors = FALSE
+  )
+  
+  # Append the results
+  lr_test_results <- rbind(lr_test_results, temp_result)
+}
+
+# Display the results
+print(lr_test_results)
+
+```
+```{r}
+library(tseries)  # For adf.test
+library(urca)     # For ur.pp
+adf_pp_results <- data.frame(
+  LOCATION = character(),
+  ADF_Statistic = numeric(),
+  ADF_P_Value = numeric(),
+  PP_Statistic = numeric(),
+  PP_P_Value = numeric(),
+  stringsAsFactors = FALSE
+)
+
+
+# Loop through each unique location
+for (location in unique(ip$LOCATION)) {
+  # Subset the data for this location
+  data <- ip[ip$LOCATION == location,]
+  
+  # Perform Augmented Dickey-Fuller Test
+  adf_test <- adf.test(data$growthrate)
+  
+  # Perform Phillips-Perron Test
+  pp_test <- ur.pp(data$growthrate, type="Z-alpha")
+  
+  # Create a temporary data frame for this location
+  temp_results <- data.frame(
+    LOCATION = location,
+    ADF_Statistic = adf_test$statistic,
+    ADF_P_Value = adf_test$p.value,
+    PP_Statistic = pp_test@teststat[1],
+    PP_P_Value = pp_test@cval[1],
+     stringsAsFactors = FALSE
+  )
+  
+  # Append to the adf_pp_results
+  adf_pp_results <- rbind(adf_pp_results, temp_results)
+}
+
+```
+```{r}
+# Create an empty dataframe to store filtered data
+filtered_data <- data.frame()
+
+# Define Z-score threshold (usually 2 or 3 for 95% and 99% confidence)
+threshold <- 3.5
+# Loop through each unique LOCATION
+for (location in unique(ip$LOCATION)) {
+  # Subset data for the current LOCATION
+  data_subset <- ip[ip$LOCATION == location,]
+  
+  # Calculate mean and standard deviation for 'growthrate' for this LOCATION
+  mean_growthrate <- mean(data_subset$growthrate, na.rm = TRUE)
+  sd_growthrate <- sd(data_subset$growthrate, na.rm = TRUE)
+  
+  # Calculate Z-score
+  data_subset$Z_score <- abs((data_subset$growthrate - mean_growthrate) / sd_growthrate)
+  
+  # Remove outliers
+  data_no_outliers <- subset(data_subset, Z_score <= threshold)
+  
+  # Drop the Z-score column as it's no longer needed
+  data_no_outliers$Z_score <- NULL
+  
+  # Append the data_no_outliers to the filtered_data dataframe
+  filtered_data <- rbind(filtered_data, data_no_outliers)
+}
+
+
+```
+```{r}
+# Create a new dataframe with just the rows where LOCATION == "USA"
+usa_data <- subset(ip, LOCATION == "USA")
+
+# Create a new column counting the rows
+usa_data$row_count <- seq_len(nrow(usa_data))
+
+# Initialize an empty dataframe to store results
+result_mle_USA <- data.frame(Start_Year = numeric(), End_Year = numeric(), mu = numeric(), a = numeric(), b = numeric())
+
+# Define the row increment
+row_increment <- 60
+
+# Initialize start and end for the first iteration
+current_start_row <- 1
+current_end_row <- row_increment
+
+# Loop through the data, incrementing by 60 rows each time
+while (current_end_row <= nrow(usa_data)) {
+  
+  # Subset the data for this row range
+  data_subset <- subset(usa_data, row_count >= current_start_row & row_count <= current_end_row)
+  
+  # Get the minimum and maximum TIME within this subset
+  start_year <- min(data_subset$TIME)
+  end_year <- max(data_subset$TIME)
+  
+  # Fit the standard distribution
+  fit_standard_gen <- MASS::fitdistr(data_subset$growthrate, dlaplace_standard, start = list(mu = 0, a = 1))
+  
+  # Define the objective function for b
+  objective_function_b <- function(b, data, m, a) {
+    log_density <- log(dlaplace_modified(data, m = m, a = a, b = b))
+    neg_log_likelihood <- -sum(log_density, na.rm = TRUE)
+    return(neg_log_likelihood)
+  }
+  
+  # Take m and a from the fit_standard_gen
+  m <- fit_standard_gen$estimate['mu']
+  a <- fit_standard_gen$estimate['a']
+  
+  # Optimization for b, given m and a
+  result_bgen <- optim(1, fn = objective_function_b, data = data_subset$growthrate, m = m, a = a, method = "L-BFGS-B", lower = 0.6, upper = 3.3)
+  
+  # Resulting estimate for b
+  b_estimates <- result_bgen$par
+  
+  # Append the results for this row range to the result_mle_USA dataframe
+  result_mle_USA <- rbind(result_mle_USA, data.frame(
+    Start_Year = start_year,
+    End_Year = end_year,
+    mu = m,
+    a = a,
+    b = b_estimates
+  ))
+  
+  # Move the row counter by 60
+  current_start_row <- current_end_row + 1
+  current_end_row <- current_end_row + row_increment
+}
+
+# Remove row names for a cleaner look
+row.names(result_mle_USA) <- NULL
+
+# View the results
+print(result_mle_USA)
+
+
+
+```
+```{r}
+# Create a new dataframe with just the rows where LOCATION == "USA"
+usa_data <- subset(ip, LOCATION == "USA")
+
+# Create a new column counting the rows
+usa_data$row_count <- seq_len(nrow(usa_data))
+
+# Initialize an empty dataframe to store results
+result_mle_USA <- data.frame(Start_Year = numeric(), End_Year = numeric(), mu = numeric(), a = numeric(), b = numeric())
+
+# Define the row increment
+row_increment <- 120
+
+# Initialize start and end for the first iteration
+current_start_row <- 1
+current_end_row <- row_increment
+
+# Loop through the data, incrementing by 120 rows each time
+while (current_end_row <= nrow(usa_data)) {
+  
+  # Subset the data for this row range
+  data_subset <- subset(usa_data, row_count >= current_start_row & row_count <= current_end_row)
+  
+  # Get the minimum and maximum TIME within this subset
+  start_year <- min(data_subset$TIME)
+  end_year <- max(data_subset$TIME)
+  
+  # Fit the standard distribution
+  fit_standard_gen <- MASS::fitdistr(data_subset$growthrate, dlaplace_standard, start = list(mu = 0, a = 1))
+  
+  # Define the objective function for b
+  objective_function_b <- function(b, data, m, a) {
+    log_density <- log(dlaplace_modified(data, m = m, a = a, b = b))
+    neg_log_likelihood <- -sum(log_density, na.rm = TRUE)
+    return(neg_log_likelihood)
+  }
+  
+  # Take m and a from the fit_standard_gen
+  m <- fit_standard_gen$estimate['mu']
+  a <- fit_standard_gen$estimate['a']
+  
+  # Optimization for b, given m and a
+  result_bgen <- optim(1, fn = objective_function_b, data = data_subset$growthrate, m = m, a = a, method = "L-BFGS-B", lower = 0.6, upper = 3.3)
+  
+  # Resulting estimate for b
+  b_estimates <- result_bgen$par
+  
+  # Append the results for this row range to the result_mle_USA dataframe
+  result_mle_USA <- rbind(result_mle_USA, data.frame(
+    Start_Year = start_year,
+    End_Year = end_year,
+    mu = m,
+    a = a,
+    b = b_estimates
+  ))
+  
+  # Move the row counter by 120
+  current_start_row <- current_end_row + 1
+  current_end_row <- current_end_row + row_increment
+}
+
+# Remove row names for a cleaner look
+row.names(result_mle_USA) <- NULL
+
+# View the results
+print(result_mle_USA)
+
+```
+
+```{r}
+# could not figure out 
+# Load the required package
+library(ReIns)
+
+# Initialize an empty data frame to store results
+result_hill <- data.frame(
+  Location = character(),
+  Hill_Estimate = numeric(),
+  stringsAsFactors = FALSE
+)
+
+# Loop through each unique location in the 'ip' data frame
+for (loc in unique(ip$LOCATION)) {
+  
+  # Subset the data for this location
+  data_subset <- subset(ip, LOCATION == loc)
+  
+  # Take the absolute value of the 'growthrate' column and add 1
+  data_subset$growthrate <- abs(data_subset$growthrate) + 1
+  
+  # Run the Hill estimator
+  hill_output <- tryCatch(
+    Hill(data_subset$growthrate, k = TRUE, logk = FALSE, plot = FALSE),
+    error = function(e) return(NULL)
+  )
+  
+  # Check if Hill estimator was successful
+  if (!is.null(hill_output) && !is.null(hill_output$alpha)) {
+    
+    # Extract the Hill estimate
+    hill_estimate <- hill_output$alpha
+    
+    # Append the results for this location to the result_hill dataframe
+    result_hill <- rbind(result_hill, data.frame(
+      Location = loc,
+      Hill_Estimate = hill_estimate
+    ))
+  } else {
+    # Optionally, print a warning message if Hill estimator was unsuccessful for this location
+    cat("Warning: Hill estimator unsuccessful for location", loc, "\n")
+  }
+}
+
+# Remove row names for a cleaner look
+row.names(result_hill) <- NULL
+
+# View the results
+print(result_hill)
+
+
+
+```
+```{r}
+pdf_student_t <- function(x, d, l, v) {
+  # Calculate the Gamma function terms
+  gamma_term1 <- gamma((v + 1) / 2)
+  gamma_term2 <- gamma(v / 2)
+  
+  # Calculate the constant in front of the formula
+  constant <- gamma_term1 / (sqrt(v * pi) *d* gamma_term2)
+  
+  # Calculate the main expression
+  main_expr <- (1 + ((1 / v) * ((x - l) / d)^2))^(-((v + 1) / 2))
+  
+  # Calculate the full PDF value
+  pdf_value <- constant * main_expr
+ 
+  
+  
+  return(pdf_value)
+
+}
+
+
+```
+```{r}
+
+pcustom_student_t <- function(x, d, l, v) {
+  sapply(x, function(x_i) {
+    integrate(function(u) pdf_student_t(u, d, l, v), -Inf, x_i)$value
+  })
+}
+
+# Step 2: Create a custom function capturing the parameters
+ cdf_student_t<- function(x) {
+  pcustom_student_t(x, 
+                     
+                    d = fit$estimate['d'], 
+                    l = fit$estimate['l'],
+                    v = fit$estimate['v'])
+   
+  
+  return(-sum(log_density))
+
+}
+
+```
+```{r}
+ip_usa=ip[ip$LOCATION=="USA",]
+```
+
+```{r}
+library(MASS)
+ fit2=fitdistr(ip_usa$growthrate, "t", 
+                 start = list(m = mean(ip_usa$growthrate), s = sd(ip_usa$growthrate), df = 3), 
+                 method = "L-BFGS-B", 
+                 lower = c(-3, 0.0001, 1),
+                 upper = c(3, 3, 10))
+ objective_function <- function(params, data) {
+  d <- params[1]
+  l <- params[2]
+  v <- params[3]
+  
+  log_density <- log(pdf_student_t(data, d, l, v))
+  return(-sum(log_density))}
+ optim(
+  par = c(d = fit2$estimate["m"], l = fit2$estimate["s"], v = fit2$estimate["df"]),  # use fitted values here
+  fn = objective_function,
+  data = ip_usa$growthrate,
+   method = "Nelder-Mead", 
+                 #lower = c(-3, 0.0001, 1),
+                #upper = c(3, 3, 30)
+ 
+)
+
+
+```
+
+
+```{r}
+
+# Initialize an empty data frame to store results
+studentT <- data.frame(
+  location = character(),
+  opt_m = numeric(),
+  opt_s = numeric(),
+  opt_df = numeric(),
+  stringsAsFactors = FALSE
+)
+
+# Unique locations
+unique_locations <- unique(ip$LOCATION)
+
+# Loop over each unique location
+for(loc in unique_locations) {
+  
+  # Subset the data for the current location
+  ip_subset <- subset(ip, LOCATION== loc)
+  
+  
+    
+    # Fit initial distribution
+    
+
+    # Perform optimization
+    opt_result <- optim(
+      par = c(d = mean(ip_subset$growthrate), l =sd(ip_subset$growthrate), v = 3),
+      fn = objective_function,
+      data = ip_subset$growthrate,
+      method = "Nelder-Mead", 
+      #lower = c(-3, 0.0001, 1),
+      #upper = c(3, 3, 30)
+    )
+    
+    # Store results in data frame
+    new_row <- data.frame(
+      location = loc,
+      opt_m = opt_result$par[1],
+      opt_s = opt_result$par[2],
+      opt_df = opt_result$par[3],
+      stringsAsFactors = FALSE
+      
+    
+    )
+    
+  studentT <- bind_rows(studentT, new_row)
+  }
+    
+
+
+# View the results data frame
+print(studentT)
+
+
+```
+```{r}
+# Custom cauchy function
+cauchy_custom <- function(x, delta, p) {
+  1 / (delta * pi) * (1 + ((x - p) / delta)^2)^(-1)
+}
+
+
+```
+```{r}
+
+# Objective function for MLE
+ cauchy_custom_objective <- function(params, data) {
+  delta <- params[1]
+  p <- params[2]
+  
+  # Calculate likelihood
+  likelihood <- prod(cauchy_custom(data, delta, p))
+  
+  # Return negative log-likelihood because optim() looks for the minimum
+  return(-log(likelihood))
+}
+
+```
+```{r}
+cauchy_custom_cdf <- function(x, delta, p) {
+  sapply(x, function(x_i) {
+    integrate(function(u) cauchy_custom_pdf(u, delta, p), -Inf, x_i)$value
+  })
+}
+
+```
+
+```{r}
+#test optional techniques 
+# Assume ip_usa$growthrate contains the data you're interested in
+initial_values <- c(1, 0.5)  # Replace with sensible initial values
+
+opt_result_usa <- optim(
+  par = initial_values,
+  fn = cauchy_custom_objective,
+  data = ip_usa$growthrate,
+  method = "Nelder-Mead"
+    # Upper bounds for delta and p
+)
+
+
+
+```
+```{r}
+# Initialize an empty data frame to store results with column names
+cauchy_params <- data.frame(
+  LOCATION = character(),
+  delta_opt = numeric(),
+  p_opt = numeric(),
+  stringsAsFactors = FALSE
+)
+
+# Unique locations in your data
+unique_locations <- unique(ip$LOCATION)
+
+# Loop through each unique location
+for (loc in unique_locations) {
+  # Use tryCatch to skip errors
+  
+    # Subset data for the current location
+    ip_subset <- subset(ip, LOCATION == loc)
+    
+    # Initial parameter estimates
+    initial_values <- c(delta = 1, p = 0.5)
+    
+    # Perform optimization for the current location
+    opt_result <- optim(
+      par = initial_values,
+      fn = cauchy_custom_objective,
+      data = ip_subset$growthrate,
+      method = "Nelder-Mead"
+    )
+    
+    # Create a new row for results
+    new_row <- data.frame(
+      LOCATION = loc,
+      delta_opt = opt_result$par[1],
+      p_opt = opt_result$par[2],
+      stringsAsFactors = FALSE
+    )
+    
+    # Append the new row to the results data frame
+    cauchy_params <- rbind(cauchy_params, new_row)
+    
+  }
+
+
+
+
+
+
+
+```
+```{r}
+# Initialize an empty data frame to store test results
+cauchy_tests <- data.frame(
+  LOCATION = character(),
+  CVM_Statistic = numeric(),
+  CVM_P_Value = numeric(),
+  KS_Statistic = numeric(),
+  KS_P_Value = numeric(),
+  AD_Statistic = numeric(),
+  AD_P_Value = numeric(),
+  stringsAsFactors = FALSE
+)
+
+# Loop through each unique location
+for (loc in unique(ip$LOCATION)) {
+  tryCatch({
+     # Subset data for the current location
+    ip_subset <- subset(ip, LOCATION == loc)
+    
+    # Get the estimated parameters from cauchy_params
+    delta <- cauchy_params[cauchy_params$LOCATION == loc, "delta_opt"]
+    p <- cauchy_params[cauchy_params$LOCATION == loc, "p_opt"]
+    
+    # Custom CDF function using the estimated parameters
+    custom_cdfgen <- function(x) {
+      cauchy_custom_cdf(x, delta, p)
+    }
+    
+    # Perform the CVM test
+    cvm_test <- goftest::cvm.test(ip_subset$growthrate, nullname = "custom_cdfgen", estimated = TRUE)
+    
+    # Perform the KS test
+    ks_test <- ks.test(ip_subset$growthrate, "custom_cdfgen")
+    
+    # Perform the Anderson-Darling test
+    ad_test <- goftest::ad.test(ip_subset$growthrate, "custom_cdfgen")
+    
+    temp_new_tests <- data.frame(
+      LOCATION = loc,
+      CVM_Statistic = cvm_test$statistic,
+      CVM_P_Value = cvm_test$p.value,
+      KS_Statistic = ks_test$statistic,
+      KS_P_Value = ks_test$p.value,
+      AD_Statistic = ad_test$statistic,
+      AD_P_Value = ad_test$p.value,
+      stringsAsFactors = FALSE
+    )
+    
+    # Append to the cauchy_tests
+    cauchy_tests <- rbind(cauchy_tests, temp_new_tests)
+    
+  }, error = function(e) {
+    message("An error occurred for location ", loc, "; skipping to next location.")
+  })
+}
+
+# Remove row names
+row.names(cauchy_tests) <- NULL
+
+# Check the results
+print(cauchy_tests)
+
+```
+
+
+
+
+
+
+
+
+
+
+
+
+
+

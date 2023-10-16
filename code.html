@@ -506,19 +506,19 @@ estimate_b &lt;- function(data) {
 
 
 # Bootstrap
-bootstrap_b &lt;- replicate(100, {
+bootstrap_b &lt;- replicate(4000, {
   sample_data &lt;- sample(usgdp_list$growthrate, size = length(usgdp_list$growthrate), replace = TRUE)
   estimate_b(sample_data)
 })
 
 #only a d Small samples give Gaussian curves 
 length(which(bootstrap_b&gt;=2))</code></pre>
-<pre><code>## [1] 0</code></pre>
+<pre><code>## [1] 4</code></pre>
 <pre class="r"><code>#mean
 mean(bootstrap_b)</code></pre>
-<pre><code>## [1] 1.191056</code></pre>
+<pre><code>## [1] 1.225725</code></pre>
 <pre class="r"><code>sd(bootstrap_b)</code></pre>
-<pre><code>## [1] 0.1668643</code></pre>
+<pre><code>## [1] 0.1825396</code></pre>
 <pre class="r"><code>se=mean(bootstrap_b)+(2*sd(bootstrap_b))*c(1,-1)</code></pre>
 <pre class="r"><code># Perform a two-tailed t-test to test whether the mean of bootstrap_b is 1
  t.test(bootstrap_b, alternative = &quot;two.sided&quot;, mu = 1)</code></pre>
@@ -526,26 +526,26 @@ mean(bootstrap_b)</code></pre>
 ##  One Sample t-test
 ## 
 ## data:  bootstrap_b
-## t = 11.45, df = 99, p-value &lt; 0.00000000000000022
+## t = 78.208, df = 3999, p-value &lt; 0.00000000000000022
 ## alternative hypothesis: true mean is not equal to 1
 ## 95 percent confidence interval:
-##  1.157947 1.224166
+##  1.220066 1.231383
 ## sample estimates:
 ## mean of x 
-##  1.191056</code></pre>
+##  1.225725</code></pre>
 <pre class="r"><code>#use ttest to see if b could be 2 which would be a normal distribution 
  t.test(bootstrap_b, alternative = &quot;greater&quot;, mu = 2)</code></pre>
 <pre><code>## 
 ##  One Sample t-test
 ## 
 ## data:  bootstrap_b
-## t = -48.479, df = 99, p-value = 1
+## t = -268.27, df = 3999, p-value = 1
 ## alternative hypothesis: true mean is greater than 2
 ## 95 percent confidence interval:
-##  1.16335     Inf
+##  1.220976      Inf
 ## sample estimates:
 ## mean of x 
-##  1.191056</code></pre>
+##  1.225725</code></pre>
 <pre class="r"><code>library(ggplot2)
 pdf_plot &lt;- ggplot() +
   stat_function(fun = dlaplace_modified, args = list(m = fit$estimate[&#39;mu&#39;], a = fit$estimate[&#39;a&#39;], b = fit$estimate[&#39;b&#39;]), geom = &quot;line&quot;, color = &#39;blue&#39;) +
@@ -609,7 +609,8 @@ goftest::cvm.test(usgdp_list$growthrate,&quot;custom_cdfUS&quot;,nullname = &quo
 <pre class="r"><code>#H=1
 
 #print the results </code></pre>
-<pre class="r"><code># Get the log-likelihood of the null model (b = 1)
+<pre class="r"><code>#check please 
+# Get the log-likelihood of the null model (b = 1)
 logLik_null &lt;- sum(log(sapply(usgdp_list$growthrate, custom_cdfoneUS)))
 
 # Get the log-likelihood of the alternative model (b not restricted)
@@ -768,7 +769,8 @@ for (location in unique(ip$LOCATION)) {
 }
   
 # Remove row names
-row.names(tests_df) &lt;- NULL</code></pre>
+row.names(tests_df) &lt;- NULL
+first_tests &lt;- tests_df</code></pre>
 <pre class="r"><code># Create a new dataframe for the new tests
 new_tests_df &lt;- data.frame(
   LOCATION = character(),
@@ -906,50 +908,50 @@ row.names(new_tests_df) &lt;- NULL
 # Check the results
 print(new_tests_df)</code></pre>
 <pre><code>##     LOCATION CVM_Statistic CVM_P_Value KS_Statistic KS_P_Value AD_Statistic
-## 1        AUT      6.770599           0   0.02626325 0.93295327    0.5242094
-## 2        BEL      6.714557           0   0.04727286 0.30228427    1.1546632
-## 3        BGR      3.240650           0   0.05525106 0.92671770    0.2920035
-## 4        BRA      6.518306           0   0.05384958 0.20569314    1.0551119
-## 5        CAN      6.887335           0   0.03341635 0.73364142    0.4325175
-## 6        CHL      4.810446           0   0.03622612 0.95827619    0.3487869
-## 7        COL      4.862892           0   0.04898478 0.68911464    0.3809371
-## 8        CZE      4.800281           0   0.06973007 0.25397407    0.7382712
-## 9        DEU      6.836222           0   0.04034735 0.49800913    0.5751870
-## 10       DNK      6.695938           0   0.06153717 0.09378882    0.9215232
-## 11      EA19      6.577143           0   0.03080705 0.85723867    0.5711358
-## 12       ESP      6.791679           0   0.04361094 0.39844197    0.7001226
-## 13       EST      3.475926           0   0.04032355 0.99166996    0.1781252
-## 14 EU27_2020      6.567920           0   0.03078165 0.85791316    0.6310641
-## 15       FIN      6.662594           0   0.03117144 0.80680282    0.3964707
-## 16       FRA      6.859403           0   0.03689528 0.61384013    0.2390119
-## 17       G-7      6.867102           0   0.03426315 0.70480763    0.7657385
-## 18       GBR      6.865071           0   0.03741417 0.59598904    0.7763685
-## 19       GRC      6.599923           0   0.03884463 0.54744685    0.6932776
-## 20       HRV      3.549430           0   0.04359712 0.98016994    0.2608620
-## 21       HUN      5.461383           0   0.03042130 0.96283389    0.3387494
-## 22       IND      4.210929           0   0.03315110 0.99441447    0.2517268
-## 23       IRL      6.264365           0   0.03292093 0.79696101    0.5141934
-## 24       ISL      3.558436           0   0.05392443 0.88865855    0.4684780
-## 25       ISR      4.815786           0   0.04599094 0.76099948    0.4454438
-## 26       ITA      6.876516           0   0.03261139 0.76054006    0.3798622
-## 27       KOR      4.851383           0   0.03419512 0.95590236    0.3204812
-## 28       LTU      3.406544           0   0.05519043 0.87158504    0.3838319
-## 29       LUX      6.482923           0   0.04063907 0.48864313    0.5564960
-## 30       LVA      3.283577           0   0.06777362 0.79191737    0.4559849
-## 31       MEX      6.209338           0   0.04645804 0.47064363    0.7438120
-## 32       NLD      6.686938           0   0.05306050 0.18565470    0.8696826
-## 33       NOR      6.752858           0   0.04350477 0.40148650    1.1350323
-## 34      OECD      6.619598           0   0.03833639 0.61200149    0.6577788
-## 35     OECDE      6.867746           0   0.02706966 0.91657809    0.4020900
-## 36       POL      5.571516           0   0.04730600 0.57668244    0.7816362
-## 37       PRT      6.571216           0   0.03155940 0.79462026    0.5786589
-## 38       ROU      3.250671           0   0.09344335 0.39789422    0.8682117
-## 39       RUS      4.648022           0   0.04859118 0.80027205    0.3796881
-## 40       SVK      4.879119           0   0.05233552 0.57155963    0.7502016
-## 41       SVN      4.555937           0   0.03798027 0.94909546    0.2290207
-## 42       SWE      6.625590           0   0.03441085 0.69973726    0.6158595
-## 43       TUR      5.455529           0   0.04178847 0.72914248    0.5312969
-## 44       USA      6.846736           0   0.03626539 0.63561155    0.7650453
+## 1        AUT      6.749722           0   0.02626325 0.93295327    0.5242094
+## 2        BEL      6.656659           0   0.04727286 0.30228427    1.1546632
+## 3        BGR      3.162275           0   0.05525106 0.92671770    0.2920035
+## 4        BRA      6.484553           0   0.05384958 0.20569314    1.0551119
+## 5        CAN      6.838803           0   0.03341635 0.73364142    0.4325175
+## 6        CHL      4.645519           0   0.03622612 0.95827619    0.3487869
+## 7        COL      4.845001           0   0.04898478 0.68911464    0.3809371
+## 8        CZE      4.782497           0   0.06973007 0.25397407    0.7382712
+## 9        DEU      6.796676           0   0.04034735 0.49800913    0.5751870
+## 10       DNK      6.619519           0   0.06153717 0.09378882    0.9215232
+## 11      EA19      6.527698           0   0.03080705 0.85723867    0.5711358
+## 12       ESP      6.773305           0   0.04361094 0.39844197    0.7001226
+## 13       EST      3.523595           0   0.04032355 0.99166996    0.1781252
+## 14 EU27_2020      6.597057           0   0.03078165 0.85791316    0.6310641
+## 15       FIN      6.643839           0   0.03117144 0.80680282    0.3964707
+## 16       FRA      6.779676           0   0.03689528 0.61384013    0.2390119
+## 17       G-7      6.887163           0   0.03426315 0.70480763    0.7657385
+## 18       GBR      6.835691           0   0.03741417 0.59598904    0.7763685
+## 19       GRC      6.762364           0   0.03884463 0.54744685    0.6932776
+## 20       HRV      3.586714           0   0.04359712 0.98016994    0.2608620
+## 21       HUN      5.499924           0   0.03042130 0.96283389    0.3387494
+## 22       IND      4.244145           0   0.03315110 0.99441447    0.2517268
+## 23       IRL      6.171891           0   0.03292093 0.79696101    0.5141934
+## 24       ISL      3.599545           0   0.05392443 0.88865855    0.4684780
+## 25       ISR      4.817570           0   0.04599094 0.76099948    0.4454438
+## 26       ITA      6.777716           0   0.03261139 0.76054006    0.3798622
+## 27       KOR      4.821589           0   0.03419512 0.95590236    0.3204812
+## 28       LTU      3.346656           0   0.05519043 0.87158504    0.3838319
+## 29       LUX      6.453879           0   0.04063907 0.48864313    0.5564960
+## 30       LVA      3.266600           0   0.06777362 0.79191737    0.4559849
+## 31       MEX      6.193747           0   0.04645804 0.47064363    0.7438120
+## 32       NLD      6.759307           0   0.05306050 0.18565470    0.8696826
+## 33       NOR      6.583879           0   0.04350477 0.40148650    1.1350323
+## 34      OECD      6.589475           0   0.03833639 0.61200149    0.6577788
+## 35     OECDE      6.850649           0   0.02706966 0.91657809    0.4020900
+## 36       POL      5.502464           0   0.04730600 0.57668244    0.7816362
+## 37       PRT      6.706553           0   0.03155940 0.79462026    0.5786589
+## 38       ROU      3.230036           0   0.09344335 0.39789422    0.8682117
+## 39       RUS      4.555833           0   0.04859118 0.80027205    0.3796881
+## 40       SVK      4.820243           0   0.05233552 0.57155963    0.7502016
+## 41       SVN      4.548590           0   0.03798027 0.94909546    0.2290207
+## 42       SWE      6.734249           0   0.03441085 0.69973726    0.6158595
+## 43       TUR      5.459824           0   0.04178847 0.72914248    0.5312969
+## 44       USA      6.928478           0   0.03626539 0.63561155    0.7650453
 ##    AD_P_Value
 ## 1   0.7221462
 ## 2   0.2854093
@@ -995,716 +997,47 @@ print(new_tests_df)</code></pre>
 ## 42  0.6330335
 ## 43  0.7149584
 ## 44  0.5068560</code></pre>
-<pre class="r"><code># Initialize empty data frame to store Anderson-Darling results
-ad_results &lt;- data.frame(
-  LOCATION = character(),
-  AndersonDarling = numeric(),
-  stringsAsFactors = FALSE
-)
+<pre class="r"><code>Laplacefittest=new_tests_df</code></pre>
+<pre class="r"><code># Create an empty list to store individual data frames
+list_ad_results &lt;- list()
 
-weight_function &lt;- function(y) {
-  return(1)  # Define the weight function as needed
-}
+# Calculate n and min_growrate once to reuse later
+n &lt;- length(data$growthrate)
+min_growrate &lt;- min(data$growthrate)
 
-# Loop through each unique location
-for (location in unique(ip$LOCATION)) {
-  # Subset the data for this location
-  data &lt;- ip[ip$LOCATION == location,]
-  
-  # Retrieve the estimated parameters for this location from result_mle
+# Function to compute Anderson-Darling statistic for a given location
+compute_QAD_gen &lt;- function(location) {
+  # Subset data by location and get parameters
+  data_sub &lt;- ip[ip$LOCATION == location,]
   mu &lt;- result_mle[result_mle$LOCATION == location, &quot;mu&quot;]
   a &lt;- result_mle[result_mle$LOCATION == location, &quot;a&quot;]
   b &lt;- result_mle[result_mle$LOCATION == location, &quot;b&quot;]
   
-  # Define the custom CDFs with the retrieved parameters
   custom_cdfgen &lt;- function(x) {
     plaplace_modified(x, m = mu, a = a, b = b)
   }
   
-  # Calculate Anderson-Darling statistic
-  n &lt;- length(data$growthrate)
+  # Integrate
   QAD_gen &lt;- n * integrate(function(y) {
-    Fn_y &lt;- mean(data$growthrate &lt;= y)  # Empirical CDF
-    F_y &lt;- custom_cdfgen(y)  # Theoretical CDF based on the fitted model
-    w_y &lt;- weight_function(y)  # Weight function
-    return ((F_y - Fn_y)^2 * w_y)
-  }, lower = min(data$growthrate), upper = max(data$growthrate))$value
+    Fn_y &lt;- mean(data_sub$growthrate &lt;= y)
+    F_y &lt;- custom_cdfgen(y)
+    w_y &lt;- weight_function(y)
+    return((F_y - Fn_y)^2 * w_y)
+  }, lower = min_growrate, upper = max(data_sub$growthrate))$value
   
-  # Add the results to the results data frame
-  ad_results &lt;- rbind(ad_results, data.frame(
+  return(data.frame(
     LOCATION = location,
-    AndersonDarling = QAD_gen
+    AndersonDarling = QAD_gen,
+    stringsAsFactors = FALSE
   ))
-}</code></pre>
-<pre><code>## Warning in data$growthrate &lt;= y: longer object length is not a multiple of
-## shorter object length
+}
 
-## Warning in data$growthrate &lt;= y: longer object length is not a multiple of
-## shorter object length
 
-## Warning in data$growthrate &lt;= y: longer object length is not a multiple of
-## shorter object length
 
-## Warning in data$growthrate &lt;= y: longer object length is not a multiple of
-## shorter object length
+# Combine individual data frames into one
+ad_results &lt;- do.call(&quot;rbind&quot;, list_ad_results)
 
-## Warning in data$growthrate &lt;= y: longer object length is not a multiple of
-## shorter object length
-
-## Warning in data$growthrate &lt;= y: longer object length is not a multiple of
-## shorter object length
-
-## Warning in data$growthrate &lt;= y: longer object length is not a multiple of
-## shorter object length
-
-## Warning in data$growthrate &lt;= y: longer object length is not a multiple of
-## shorter object length
-
-## Warning in data$growthrate &lt;= y: longer object length is not a multiple of
-## shorter object length
-
-## Warning in data$growthrate &lt;= y: longer object length is not a multiple of
-## shorter object length
-
-## Warning in data$growthrate &lt;= y: longer object length is not a multiple of
-## shorter object length
-
-## Warning in data$growthrate &lt;= y: longer object length is not a multiple of
-## shorter object length
-
-## Warning in data$growthrate &lt;= y: longer object length is not a multiple of
-## shorter object length
-
-## Warning in data$growthrate &lt;= y: longer object length is not a multiple of
-## shorter object length
-
-## Warning in data$growthrate &lt;= y: longer object length is not a multiple of
-## shorter object length
-
-## Warning in data$growthrate &lt;= y: longer object length is not a multiple of
-## shorter object length
-
-## Warning in data$growthrate &lt;= y: longer object length is not a multiple of
-## shorter object length
-
-## Warning in data$growthrate &lt;= y: longer object length is not a multiple of
-## shorter object length
-
-## Warning in data$growthrate &lt;= y: longer object length is not a multiple of
-## shorter object length
-
-## Warning in data$growthrate &lt;= y: longer object length is not a multiple of
-## shorter object length
-
-## Warning in data$growthrate &lt;= y: longer object length is not a multiple of
-## shorter object length
-
-## Warning in data$growthrate &lt;= y: longer object length is not a multiple of
-## shorter object length
-
-## Warning in data$growthrate &lt;= y: longer object length is not a multiple of
-## shorter object length
-
-## Warning in data$growthrate &lt;= y: longer object length is not a multiple of
-## shorter object length
-
-## Warning in data$growthrate &lt;= y: longer object length is not a multiple of
-## shorter object length
-
-## Warning in data$growthrate &lt;= y: longer object length is not a multiple of
-## shorter object length
-
-## Warning in data$growthrate &lt;= y: longer object length is not a multiple of
-## shorter object length
-
-## Warning in data$growthrate &lt;= y: longer object length is not a multiple of
-## shorter object length
-
-## Warning in data$growthrate &lt;= y: longer object length is not a multiple of
-## shorter object length
-
-## Warning in data$growthrate &lt;= y: longer object length is not a multiple of
-## shorter object length
-
-## Warning in data$growthrate &lt;= y: longer object length is not a multiple of
-## shorter object length
-
-## Warning in data$growthrate &lt;= y: longer object length is not a multiple of
-## shorter object length
-
-## Warning in data$growthrate &lt;= y: longer object length is not a multiple of
-## shorter object length
-
-## Warning in data$growthrate &lt;= y: longer object length is not a multiple of
-## shorter object length
-
-## Warning in data$growthrate &lt;= y: longer object length is not a multiple of
-## shorter object length
-
-## Warning in data$growthrate &lt;= y: longer object length is not a multiple of
-## shorter object length
-
-## Warning in data$growthrate &lt;= y: longer object length is not a multiple of
-## shorter object length
-
-## Warning in data$growthrate &lt;= y: longer object length is not a multiple of
-## shorter object length
-
-## Warning in data$growthrate &lt;= y: longer object length is not a multiple of
-## shorter object length
-
-## Warning in data$growthrate &lt;= y: longer object length is not a multiple of
-## shorter object length
-
-## Warning in data$growthrate &lt;= y: longer object length is not a multiple of
-## shorter object length
-
-## Warning in data$growthrate &lt;= y: longer object length is not a multiple of
-## shorter object length
-
-## Warning in data$growthrate &lt;= y: longer object length is not a multiple of
-## shorter object length
-
-## Warning in data$growthrate &lt;= y: longer object length is not a multiple of
-## shorter object length
-
-## Warning in data$growthrate &lt;= y: longer object length is not a multiple of
-## shorter object length
-
-## Warning in data$growthrate &lt;= y: longer object length is not a multiple of
-## shorter object length
-
-## Warning in data$growthrate &lt;= y: longer object length is not a multiple of
-## shorter object length
-
-## Warning in data$growthrate &lt;= y: longer object length is not a multiple of
-## shorter object length
-
-## Warning in data$growthrate &lt;= y: longer object length is not a multiple of
-## shorter object length
-
-## Warning in data$growthrate &lt;= y: longer object length is not a multiple of
-## shorter object length
-
-## Warning in data$growthrate &lt;= y: longer object length is not a multiple of
-## shorter object length
-
-## Warning in data$growthrate &lt;= y: longer object length is not a multiple of
-## shorter object length
-
-## Warning in data$growthrate &lt;= y: longer object length is not a multiple of
-## shorter object length
-
-## Warning in data$growthrate &lt;= y: longer object length is not a multiple of
-## shorter object length
-
-## Warning in data$growthrate &lt;= y: longer object length is not a multiple of
-## shorter object length
-
-## Warning in data$growthrate &lt;= y: longer object length is not a multiple of
-## shorter object length
-
-## Warning in data$growthrate &lt;= y: longer object length is not a multiple of
-## shorter object length
-
-## Warning in data$growthrate &lt;= y: longer object length is not a multiple of
-## shorter object length
-
-## Warning in data$growthrate &lt;= y: longer object length is not a multiple of
-## shorter object length
-
-## Warning in data$growthrate &lt;= y: longer object length is not a multiple of
-## shorter object length
-
-## Warning in data$growthrate &lt;= y: longer object length is not a multiple of
-## shorter object length
-
-## Warning in data$growthrate &lt;= y: longer object length is not a multiple of
-## shorter object length
-
-## Warning in data$growthrate &lt;= y: longer object length is not a multiple of
-## shorter object length
-
-## Warning in data$growthrate &lt;= y: longer object length is not a multiple of
-## shorter object length
-
-## Warning in data$growthrate &lt;= y: longer object length is not a multiple of
-## shorter object length
-
-## Warning in data$growthrate &lt;= y: longer object length is not a multiple of
-## shorter object length
-
-## Warning in data$growthrate &lt;= y: longer object length is not a multiple of
-## shorter object length
-
-## Warning in data$growthrate &lt;= y: longer object length is not a multiple of
-## shorter object length
-
-## Warning in data$growthrate &lt;= y: longer object length is not a multiple of
-## shorter object length
-
-## Warning in data$growthrate &lt;= y: longer object length is not a multiple of
-## shorter object length
-
-## Warning in data$growthrate &lt;= y: longer object length is not a multiple of
-## shorter object length
-
-## Warning in data$growthrate &lt;= y: longer object length is not a multiple of
-## shorter object length
-
-## Warning in data$growthrate &lt;= y: longer object length is not a multiple of
-## shorter object length
-
-## Warning in data$growthrate &lt;= y: longer object length is not a multiple of
-## shorter object length
-
-## Warning in data$growthrate &lt;= y: longer object length is not a multiple of
-## shorter object length
-
-## Warning in data$growthrate &lt;= y: longer object length is not a multiple of
-## shorter object length
-
-## Warning in data$growthrate &lt;= y: longer object length is not a multiple of
-## shorter object length
-
-## Warning in data$growthrate &lt;= y: longer object length is not a multiple of
-## shorter object length
-
-## Warning in data$growthrate &lt;= y: longer object length is not a multiple of
-## shorter object length
-
-## Warning in data$growthrate &lt;= y: longer object length is not a multiple of
-## shorter object length
-
-## Warning in data$growthrate &lt;= y: longer object length is not a multiple of
-## shorter object length
-
-## Warning in data$growthrate &lt;= y: longer object length is not a multiple of
-## shorter object length
-
-## Warning in data$growthrate &lt;= y: longer object length is not a multiple of
-## shorter object length
-
-## Warning in data$growthrate &lt;= y: longer object length is not a multiple of
-## shorter object length
-
-## Warning in data$growthrate &lt;= y: longer object length is not a multiple of
-## shorter object length
-
-## Warning in data$growthrate &lt;= y: longer object length is not a multiple of
-## shorter object length
-
-## Warning in data$growthrate &lt;= y: longer object length is not a multiple of
-## shorter object length
-
-## Warning in data$growthrate &lt;= y: longer object length is not a multiple of
-## shorter object length
-
-## Warning in data$growthrate &lt;= y: longer object length is not a multiple of
-## shorter object length
-
-## Warning in data$growthrate &lt;= y: longer object length is not a multiple of
-## shorter object length
-
-## Warning in data$growthrate &lt;= y: longer object length is not a multiple of
-## shorter object length
-
-## Warning in data$growthrate &lt;= y: longer object length is not a multiple of
-## shorter object length
-
-## Warning in data$growthrate &lt;= y: longer object length is not a multiple of
-## shorter object length
-
-## Warning in data$growthrate &lt;= y: longer object length is not a multiple of
-## shorter object length
-
-## Warning in data$growthrate &lt;= y: longer object length is not a multiple of
-## shorter object length
-
-## Warning in data$growthrate &lt;= y: longer object length is not a multiple of
-## shorter object length
-
-## Warning in data$growthrate &lt;= y: longer object length is not a multiple of
-## shorter object length
-
-## Warning in data$growthrate &lt;= y: longer object length is not a multiple of
-## shorter object length
-
-## Warning in data$growthrate &lt;= y: longer object length is not a multiple of
-## shorter object length
-
-## Warning in data$growthrate &lt;= y: longer object length is not a multiple of
-## shorter object length
-
-## Warning in data$growthrate &lt;= y: longer object length is not a multiple of
-## shorter object length
-
-## Warning in data$growthrate &lt;= y: longer object length is not a multiple of
-## shorter object length
-
-## Warning in data$growthrate &lt;= y: longer object length is not a multiple of
-## shorter object length
-
-## Warning in data$growthrate &lt;= y: longer object length is not a multiple of
-## shorter object length
-
-## Warning in data$growthrate &lt;= y: longer object length is not a multiple of
-## shorter object length
-
-## Warning in data$growthrate &lt;= y: longer object length is not a multiple of
-## shorter object length
-
-## Warning in data$growthrate &lt;= y: longer object length is not a multiple of
-## shorter object length
-
-## Warning in data$growthrate &lt;= y: longer object length is not a multiple of
-## shorter object length
-
-## Warning in data$growthrate &lt;= y: longer object length is not a multiple of
-## shorter object length
-
-## Warning in data$growthrate &lt;= y: longer object length is not a multiple of
-## shorter object length
-
-## Warning in data$growthrate &lt;= y: longer object length is not a multiple of
-## shorter object length
-
-## Warning in data$growthrate &lt;= y: longer object length is not a multiple of
-## shorter object length
-
-## Warning in data$growthrate &lt;= y: longer object length is not a multiple of
-## shorter object length
-
-## Warning in data$growthrate &lt;= y: longer object length is not a multiple of
-## shorter object length
-
-## Warning in data$growthrate &lt;= y: longer object length is not a multiple of
-## shorter object length
-
-## Warning in data$growthrate &lt;= y: longer object length is not a multiple of
-## shorter object length
-
-## Warning in data$growthrate &lt;= y: longer object length is not a multiple of
-## shorter object length
-
-## Warning in data$growthrate &lt;= y: longer object length is not a multiple of
-## shorter object length
-
-## Warning in data$growthrate &lt;= y: longer object length is not a multiple of
-## shorter object length
-
-## Warning in data$growthrate &lt;= y: longer object length is not a multiple of
-## shorter object length
-
-## Warning in data$growthrate &lt;= y: longer object length is not a multiple of
-## shorter object length
-
-## Warning in data$growthrate &lt;= y: longer object length is not a multiple of
-## shorter object length
-
-## Warning in data$growthrate &lt;= y: longer object length is not a multiple of
-## shorter object length
-
-## Warning in data$growthrate &lt;= y: longer object length is not a multiple of
-## shorter object length
-
-## Warning in data$growthrate &lt;= y: longer object length is not a multiple of
-## shorter object length
-
-## Warning in data$growthrate &lt;= y: longer object length is not a multiple of
-## shorter object length
-
-## Warning in data$growthrate &lt;= y: longer object length is not a multiple of
-## shorter object length
-
-## Warning in data$growthrate &lt;= y: longer object length is not a multiple of
-## shorter object length
-
-## Warning in data$growthrate &lt;= y: longer object length is not a multiple of
-## shorter object length
-
-## Warning in data$growthrate &lt;= y: longer object length is not a multiple of
-## shorter object length
-
-## Warning in data$growthrate &lt;= y: longer object length is not a multiple of
-## shorter object length
-
-## Warning in data$growthrate &lt;= y: longer object length is not a multiple of
-## shorter object length
-
-## Warning in data$growthrate &lt;= y: longer object length is not a multiple of
-## shorter object length
-
-## Warning in data$growthrate &lt;= y: longer object length is not a multiple of
-## shorter object length
-
-## Warning in data$growthrate &lt;= y: longer object length is not a multiple of
-## shorter object length
-
-## Warning in data$growthrate &lt;= y: longer object length is not a multiple of
-## shorter object length
-
-## Warning in data$growthrate &lt;= y: longer object length is not a multiple of
-## shorter object length
-
-## Warning in data$growthrate &lt;= y: longer object length is not a multiple of
-## shorter object length
-
-## Warning in data$growthrate &lt;= y: longer object length is not a multiple of
-## shorter object length
-
-## Warning in data$growthrate &lt;= y: longer object length is not a multiple of
-## shorter object length
-
-## Warning in data$growthrate &lt;= y: longer object length is not a multiple of
-## shorter object length
-
-## Warning in data$growthrate &lt;= y: longer object length is not a multiple of
-## shorter object length
-
-## Warning in data$growthrate &lt;= y: longer object length is not a multiple of
-## shorter object length
-
-## Warning in data$growthrate &lt;= y: longer object length is not a multiple of
-## shorter object length
-
-## Warning in data$growthrate &lt;= y: longer object length is not a multiple of
-## shorter object length
-
-## Warning in data$growthrate &lt;= y: longer object length is not a multiple of
-## shorter object length
-
-## Warning in data$growthrate &lt;= y: longer object length is not a multiple of
-## shorter object length
-
-## Warning in data$growthrate &lt;= y: longer object length is not a multiple of
-## shorter object length
-
-## Warning in data$growthrate &lt;= y: longer object length is not a multiple of
-## shorter object length
-
-## Warning in data$growthrate &lt;= y: longer object length is not a multiple of
-## shorter object length
-
-## Warning in data$growthrate &lt;= y: longer object length is not a multiple of
-## shorter object length
-
-## Warning in data$growthrate &lt;= y: longer object length is not a multiple of
-## shorter object length
-
-## Warning in data$growthrate &lt;= y: longer object length is not a multiple of
-## shorter object length
-
-## Warning in data$growthrate &lt;= y: longer object length is not a multiple of
-## shorter object length
-
-## Warning in data$growthrate &lt;= y: longer object length is not a multiple of
-## shorter object length
-
-## Warning in data$growthrate &lt;= y: longer object length is not a multiple of
-## shorter object length
-
-## Warning in data$growthrate &lt;= y: longer object length is not a multiple of
-## shorter object length
-
-## Warning in data$growthrate &lt;= y: longer object length is not a multiple of
-## shorter object length
-
-## Warning in data$growthrate &lt;= y: longer object length is not a multiple of
-## shorter object length
-
-## Warning in data$growthrate &lt;= y: longer object length is not a multiple of
-## shorter object length
-
-## Warning in data$growthrate &lt;= y: longer object length is not a multiple of
-## shorter object length
-
-## Warning in data$growthrate &lt;= y: longer object length is not a multiple of
-## shorter object length
-
-## Warning in data$growthrate &lt;= y: longer object length is not a multiple of
-## shorter object length
-
-## Warning in data$growthrate &lt;= y: longer object length is not a multiple of
-## shorter object length
-
-## Warning in data$growthrate &lt;= y: longer object length is not a multiple of
-## shorter object length
-
-## Warning in data$growthrate &lt;= y: longer object length is not a multiple of
-## shorter object length
-
-## Warning in data$growthrate &lt;= y: longer object length is not a multiple of
-## shorter object length
-
-## Warning in data$growthrate &lt;= y: longer object length is not a multiple of
-## shorter object length
-
-## Warning in data$growthrate &lt;= y: longer object length is not a multiple of
-## shorter object length
-
-## Warning in data$growthrate &lt;= y: longer object length is not a multiple of
-## shorter object length
-
-## Warning in data$growthrate &lt;= y: longer object length is not a multiple of
-## shorter object length
-
-## Warning in data$growthrate &lt;= y: longer object length is not a multiple of
-## shorter object length
-
-## Warning in data$growthrate &lt;= y: longer object length is not a multiple of
-## shorter object length
-
-## Warning in data$growthrate &lt;= y: longer object length is not a multiple of
-## shorter object length
-
-## Warning in data$growthrate &lt;= y: longer object length is not a multiple of
-## shorter object length
-
-## Warning in data$growthrate &lt;= y: longer object length is not a multiple of
-## shorter object length
-
-## Warning in data$growthrate &lt;= y: longer object length is not a multiple of
-## shorter object length
-
-## Warning in data$growthrate &lt;= y: longer object length is not a multiple of
-## shorter object length
-
-## Warning in data$growthrate &lt;= y: longer object length is not a multiple of
-## shorter object length
-
-## Warning in data$growthrate &lt;= y: longer object length is not a multiple of
-## shorter object length
-
-## Warning in data$growthrate &lt;= y: longer object length is not a multiple of
-## shorter object length
-
-## Warning in data$growthrate &lt;= y: longer object length is not a multiple of
-## shorter object length
-
-## Warning in data$growthrate &lt;= y: longer object length is not a multiple of
-## shorter object length
-
-## Warning in data$growthrate &lt;= y: longer object length is not a multiple of
-## shorter object length
-
-## Warning in data$growthrate &lt;= y: longer object length is not a multiple of
-## shorter object length
-
-## Warning in data$growthrate &lt;= y: longer object length is not a multiple of
-## shorter object length
-
-## Warning in data$growthrate &lt;= y: longer object length is not a multiple of
-## shorter object length
-
-## Warning in data$growthrate &lt;= y: longer object length is not a multiple of
-## shorter object length
-
-## Warning in data$growthrate &lt;= y: longer object length is not a multiple of
-## shorter object length
-
-## Warning in data$growthrate &lt;= y: longer object length is not a multiple of
-## shorter object length
-
-## Warning in data$growthrate &lt;= y: longer object length is not a multiple of
-## shorter object length
-
-## Warning in data$growthrate &lt;= y: longer object length is not a multiple of
-## shorter object length
-
-## Warning in data$growthrate &lt;= y: longer object length is not a multiple of
-## shorter object length
-
-## Warning in data$growthrate &lt;= y: longer object length is not a multiple of
-## shorter object length
-
-## Warning in data$growthrate &lt;= y: longer object length is not a multiple of
-## shorter object length
-
-## Warning in data$growthrate &lt;= y: longer object length is not a multiple of
-## shorter object length
-
-## Warning in data$growthrate &lt;= y: longer object length is not a multiple of
-## shorter object length
-
-## Warning in data$growthrate &lt;= y: longer object length is not a multiple of
-## shorter object length
-
-## Warning in data$growthrate &lt;= y: longer object length is not a multiple of
-## shorter object length
-
-## Warning in data$growthrate &lt;= y: longer object length is not a multiple of
-## shorter object length
-
-## Warning in data$growthrate &lt;= y: longer object length is not a multiple of
-## shorter object length
-
-## Warning in data$growthrate &lt;= y: longer object length is not a multiple of
-## shorter object length
-
-## Warning in data$growthrate &lt;= y: longer object length is not a multiple of
-## shorter object length
-
-## Warning in data$growthrate &lt;= y: longer object length is not a multiple of
-## shorter object length
-
-## Warning in data$growthrate &lt;= y: longer object length is not a multiple of
-## shorter object length
-
-## Warning in data$growthrate &lt;= y: longer object length is not a multiple of
-## shorter object length
-
-## Warning in data$growthrate &lt;= y: longer object length is not a multiple of
-## shorter object length
-
-## Warning in data$growthrate &lt;= y: longer object length is not a multiple of
-## shorter object length
-
-## Warning in data$growthrate &lt;= y: longer object length is not a multiple of
-## shorter object length
-
-## Warning in data$growthrate &lt;= y: longer object length is not a multiple of
-## shorter object length
-
-## Warning in data$growthrate &lt;= y: longer object length is not a multiple of
-## shorter object length
-
-## Warning in data$growthrate &lt;= y: longer object length is not a multiple of
-## shorter object length
-
-## Warning in data$growthrate &lt;= y: longer object length is not a multiple of
-## shorter object length
-
-## Warning in data$growthrate &lt;= y: longer object length is not a multiple of
-## shorter object length
-
-## Warning in data$growthrate &lt;= y: longer object length is not a multiple of
-## shorter object length
-
-## Warning in data$growthrate &lt;= y: longer object length is not a multiple of
-## shorter object length
-
-## Warning in data$growthrate &lt;= y: longer object length is not a multiple of
-## shorter object length
-
-## Warning in data$growthrate &lt;= y: longer object length is not a multiple of
-## shorter object length
-
-## Warning in data$growthrate &lt;= y: longer object length is not a multiple of
-## shorter object length
-
-## Warning in data$growthrate &lt;= y: longer object length is not a multiple of
-## shorter object length
-
-## Warning in data$growthrate &lt;= y: longer object length is not a multiple of
-## shorter object length
-
-## Warning in data$growthrate &lt;= y: longer object length is not a multiple of
-## shorter object length</code></pre>
-<pre class="r"><code># You may add bootstrap or simulation code here to obtain AndersonDarlingPValue
-# ...
-
-fullfittingtest=merge(ad_results,tests_df,by = &quot;LOCATION&quot;)</code></pre>
+# Clear row names</code></pre>
 <pre class="r"><code># Initialize a dataframe to store the results
 lr_test_results &lt;- data.frame(
   LOCATION = character(),
@@ -1985,6 +1318,1113 @@ for (location in unique(ip$LOCATION)) {
 ## Warning in adf.test(data$growthrate): p-value smaller than printed p-value
 
 ## Warning in adf.test(data$growthrate): p-value smaller than printed p-value</code></pre>
+<pre class="r"><code># Create an empty dataframe to store filtered data
+filtered_data &lt;- data.frame()
+
+# Define Z-score threshold (usually 2 or 3 for 95% and 99% confidence)
+threshold &lt;- 3.5
+# Loop through each unique LOCATION
+for (location in unique(ip$LOCATION)) {
+  # Subset data for the current LOCATION
+  data_subset &lt;- ip[ip$LOCATION == location,]
+  
+  # Calculate mean and standard deviation for &#39;growthrate&#39; for this LOCATION
+  mean_growthrate &lt;- mean(data_subset$growthrate, na.rm = TRUE)
+  sd_growthrate &lt;- sd(data_subset$growthrate, na.rm = TRUE)
+  
+  # Calculate Z-score
+  data_subset$Z_score &lt;- abs((data_subset$growthrate - mean_growthrate) / sd_growthrate)
+  
+  # Remove outliers
+  data_no_outliers &lt;- subset(data_subset, Z_score &lt;= threshold)
+  
+  # Drop the Z-score column as it&#39;s no longer needed
+  data_no_outliers$Z_score &lt;- NULL
+  
+  # Append the data_no_outliers to the filtered_data dataframe
+  filtered_data &lt;- rbind(filtered_data, data_no_outliers)
+}</code></pre>
+<pre class="r"><code># Create a new dataframe with just the rows where LOCATION == &quot;USA&quot;
+usa_data &lt;- subset(ip, LOCATION == &quot;USA&quot;)
+
+# Create a new column counting the rows
+usa_data$row_count &lt;- seq_len(nrow(usa_data))
+
+# Initialize an empty dataframe to store results
+result_mle_USA &lt;- data.frame(Start_Year = numeric(), End_Year = numeric(), mu = numeric(), a = numeric(), b = numeric())
+
+# Define the row increment
+row_increment &lt;- 60
+
+# Initialize start and end for the first iteration
+current_start_row &lt;- 1
+current_end_row &lt;- row_increment
+
+# Loop through the data, incrementing by 60 rows each time
+while (current_end_row &lt;= nrow(usa_data)) {
+  
+  # Subset the data for this row range
+  data_subset &lt;- subset(usa_data, row_count &gt;= current_start_row &amp; row_count &lt;= current_end_row)
+  
+  # Get the minimum and maximum TIME within this subset
+  start_year &lt;- min(data_subset$TIME)
+  end_year &lt;- max(data_subset$TIME)
+  
+  # Fit the standard distribution
+  fit_standard_gen &lt;- MASS::fitdistr(data_subset$growthrate, dlaplace_standard, start = list(mu = 0, a = 1))
+  
+  # Define the objective function for b
+  objective_function_b &lt;- function(b, data, m, a) {
+    log_density &lt;- log(dlaplace_modified(data, m = m, a = a, b = b))
+    neg_log_likelihood &lt;- -sum(log_density, na.rm = TRUE)
+    return(neg_log_likelihood)
+  }
+  
+  # Take m and a from the fit_standard_gen
+  m &lt;- fit_standard_gen$estimate[&#39;mu&#39;]
+  a &lt;- fit_standard_gen$estimate[&#39;a&#39;]
+  
+  # Optimization for b, given m and a
+  result_bgen &lt;- optim(1, fn = objective_function_b, data = data_subset$growthrate, m = m, a = a, method = &quot;L-BFGS-B&quot;, lower = 0.6, upper = 3.3)
+  
+  # Resulting estimate for b
+  b_estimates &lt;- result_bgen$par
+  
+  # Append the results for this row range to the result_mle_USA dataframe
+  result_mle_USA &lt;- rbind(result_mle_USA, data.frame(
+    Start_Year = start_year,
+    End_Year = end_year,
+    mu = m,
+    a = a,
+    b = b_estimates
+  ))
+  
+  # Move the row counter by 60
+  current_start_row &lt;- current_end_row + 1
+  current_end_row &lt;- current_end_row + row_increment
+}
+
+# Remove row names for a cleaner look
+row.names(result_mle_USA) &lt;- NULL
+
+# View the results
+print(result_mle_USA)</code></pre>
+<pre><code>##   Start_Year End_Year           mu           a        b
+## 1   1972 Aug 1977 Jul 0.0042709832 0.007212521 1.047898
+## 2   1977 Aug 1982 Jul 0.0009321971 0.007188490 1.245107
+## 3   1982 Aug 1987 Jul 0.0033798141 0.004847565 1.179829
+## 4   1987 Aug 1992 Jul 0.0024205161 0.004345379 1.448927
+## 5   1992 Aug 1997 Jul 0.0038761398 0.003383006 1.384323
+## 6   1997 Aug 2002 Jul 0.0022113511 0.004544202 1.665361
+## 7   2002 Aug 2007 Jul 0.0014145467 0.003742243 1.073655</code></pre>
+<pre class="r"><code># Create a new dataframe with just the rows where LOCATION == &quot;USA&quot;
+usa_data &lt;- subset(ip, LOCATION == &quot;USA&quot;)
+
+# Create a new column counting the rows
+usa_data$row_count &lt;- seq_len(nrow(usa_data))
+
+# Initialize an empty dataframe to store results
+result_mle_USA &lt;- data.frame(Start_Year = numeric(), End_Year = numeric(), mu = numeric(), a = numeric(), b = numeric())
+
+# Define the row increment
+row_increment &lt;- 120
+
+# Initialize start and end for the first iteration
+current_start_row &lt;- 1
+current_end_row &lt;- row_increment
+
+# Loop through the data, incrementing by 120 rows each time
+while (current_end_row &lt;= nrow(usa_data)) {
+  
+  # Subset the data for this row range
+  data_subset &lt;- subset(usa_data, row_count &gt;= current_start_row &amp; row_count &lt;= current_end_row)
+  
+  # Get the minimum and maximum TIME within this subset
+  start_year &lt;- min(data_subset$TIME)
+  end_year &lt;- max(data_subset$TIME)
+  
+  # Fit the standard distribution
+  fit_standard_gen &lt;- MASS::fitdistr(data_subset$growthrate, dlaplace_standard, start = list(mu = 0, a = 1))
+  
+  # Define the objective function for b
+  objective_function_b &lt;- function(b, data, m, a) {
+    log_density &lt;- log(dlaplace_modified(data, m = m, a = a, b = b))
+    neg_log_likelihood &lt;- -sum(log_density, na.rm = TRUE)
+    return(neg_log_likelihood)
+  }
+  
+  # Take m and a from the fit_standard_gen
+  m &lt;- fit_standard_gen$estimate[&#39;mu&#39;]
+  a &lt;- fit_standard_gen$estimate[&#39;a&#39;]
+  
+  # Optimization for b, given m and a
+  result_bgen &lt;- optim(1, fn = objective_function_b, data = data_subset$growthrate, m = m, a = a, method = &quot;L-BFGS-B&quot;, lower = 0.6, upper = 3.3)
+  
+  # Resulting estimate for b
+  b_estimates &lt;- result_bgen$par
+  
+  # Append the results for this row range to the result_mle_USA dataframe
+  result_mle_USA &lt;- rbind(result_mle_USA, data.frame(
+    Start_Year = start_year,
+    End_Year = end_year,
+    mu = m,
+    a = a,
+    b = b_estimates
+  ))
+  
+  # Move the row counter by 120
+  current_start_row &lt;- current_end_row + 1
+  current_end_row &lt;- current_end_row + row_increment
+}
+
+# Remove row names for a cleaner look
+row.names(result_mle_USA) &lt;- NULL
+
+# View the results
+print(result_mle_USA)</code></pre>
+<pre><code>##   Start_Year End_Year          mu           a        b
+## 1   1972 Aug 1982 Jul 0.002292676 0.007301194 1.143287
+## 2   1982 Aug 1992 Jul 0.002822975 0.004733478 1.327824
+## 3   1992 Aug 2002 Jul 0.003424343 0.003985547 1.430369</code></pre>
+<pre class="r"><code># could not figure out 
+# Load the required package
+library(ReIns)
+
+# Initialize an empty data frame to store results
+result_hill &lt;- data.frame(
+  Location = character(),
+  Hill_Estimate = numeric(),
+  stringsAsFactors = FALSE
+)
+
+# Loop through each unique location in the &#39;ip&#39; data frame
+for (loc in unique(ip$LOCATION)) {
+  
+  # Subset the data for this location
+  data_subset &lt;- subset(ip, LOCATION == loc)
+  
+  # Take the absolute value of the &#39;growthrate&#39; column and add 1
+  data_subset$growthrate &lt;- abs(data_subset$growthrate) + 1
+  
+  # Run the Hill estimator
+  hill_output &lt;- tryCatch(
+    Hill(data_subset$growthrate, k = TRUE, logk = FALSE, plot = FALSE),
+    error = function(e) return(NULL)
+  )
+  
+  # Check if Hill estimator was successful
+  if (!is.null(hill_output) &amp;&amp; !is.null(hill_output$alpha)) {
+    
+    # Extract the Hill estimate
+    hill_estimate &lt;- hill_output$alpha
+    
+    # Append the results for this location to the result_hill dataframe
+    result_hill &lt;- rbind(result_hill, data.frame(
+      Location = loc,
+      Hill_Estimate = hill_estimate
+    ))
+  } else {
+    # Optionally, print a warning message if Hill estimator was unsuccessful for this location
+    cat(&quot;Warning: Hill estimator unsuccessful for location&quot;, loc, &quot;\n&quot;)
+  }
+}</code></pre>
+<pre><code>## Warning: Hill estimator unsuccessful for location AUT 
+## Warning: Hill estimator unsuccessful for location BEL 
+## Warning: Hill estimator unsuccessful for location BGR 
+## Warning: Hill estimator unsuccessful for location BRA 
+## Warning: Hill estimator unsuccessful for location CAN 
+## Warning: Hill estimator unsuccessful for location CHL 
+## Warning: Hill estimator unsuccessful for location COL 
+## Warning: Hill estimator unsuccessful for location CZE 
+## Warning: Hill estimator unsuccessful for location DEU 
+## Warning: Hill estimator unsuccessful for location DNK 
+## Warning: Hill estimator unsuccessful for location EA19 
+## Warning: Hill estimator unsuccessful for location ESP 
+## Warning: Hill estimator unsuccessful for location EST 
+## Warning: Hill estimator unsuccessful for location EU27_2020 
+## Warning: Hill estimator unsuccessful for location FIN 
+## Warning: Hill estimator unsuccessful for location FRA 
+## Warning: Hill estimator unsuccessful for location G-7 
+## Warning: Hill estimator unsuccessful for location GBR 
+## Warning: Hill estimator unsuccessful for location GRC 
+## Warning: Hill estimator unsuccessful for location HRV 
+## Warning: Hill estimator unsuccessful for location HUN 
+## Warning: Hill estimator unsuccessful for location IND 
+## Warning: Hill estimator unsuccessful for location IRL 
+## Warning: Hill estimator unsuccessful for location ISL 
+## Warning: Hill estimator unsuccessful for location ISR 
+## Warning: Hill estimator unsuccessful for location ITA 
+## Warning: Hill estimator unsuccessful for location KOR 
+## Warning: Hill estimator unsuccessful for location LTU 
+## Warning: Hill estimator unsuccessful for location LUX 
+## Warning: Hill estimator unsuccessful for location LVA 
+## Warning: Hill estimator unsuccessful for location MEX 
+## Warning: Hill estimator unsuccessful for location NLD 
+## Warning: Hill estimator unsuccessful for location NOR 
+## Warning: Hill estimator unsuccessful for location OECD 
+## Warning: Hill estimator unsuccessful for location OECDE 
+## Warning: Hill estimator unsuccessful for location POL 
+## Warning: Hill estimator unsuccessful for location PRT 
+## Warning: Hill estimator unsuccessful for location ROU 
+## Warning: Hill estimator unsuccessful for location RUS 
+## Warning: Hill estimator unsuccessful for location SVK 
+## Warning: Hill estimator unsuccessful for location SVN 
+## Warning: Hill estimator unsuccessful for location SWE 
+## Warning: Hill estimator unsuccessful for location TUR 
+## Warning: Hill estimator unsuccessful for location USA</code></pre>
+<pre class="r"><code># Remove row names for a cleaner look
+row.names(result_hill) &lt;- NULL
+
+# View the results
+print(result_hill)</code></pre>
+<pre><code>## [1] Location      Hill_Estimate
+## &lt;0 rows&gt; (or 0-length row.names)</code></pre>
+<pre class="r"><code>pdf_student_t &lt;- function(x, d, l, v) {
+  # Calculate the Gamma function terms
+  gamma_term1 &lt;- gamma((v + 1) / 2)
+  gamma_term2 &lt;- gamma(v / 2)
+  
+  # Calculate the constant in front of the formula
+  constant &lt;- gamma_term1 / (sqrt(v * pi) *d* gamma_term2)
+  
+  # Calculate the main expression
+  main_expr &lt;- (1 + ((1 / v) * ((x - l) / d)^2))^(-((v + 1) / 2))
+  
+  # Calculate the full PDF value
+  pdf_value &lt;- constant * main_expr
+ 
+  
+  
+  return(pdf_value)
+
+}</code></pre>
+<pre class="r"><code>pcustom_student_t &lt;- function(x, d, l, v) {
+  sapply(x, function(x_i) {
+    integrate(function(u) pdf_student_t(u, d, l, v), -Inf, x_i)$value
+  })
+}
+
+# Step 2: Create a custom function capturing the parameters
+ cdf_student_t&lt;- function(x) {
+  pcustom_student_t(x, 
+                     
+                    d = fit$estimate[&#39;d&#39;], 
+                    l = fit$estimate[&#39;l&#39;],
+                    v = fit$estimate[&#39;v&#39;])
+   
+  
+  return(-sum(log_density))
+
+}</code></pre>
+<pre class="r"><code>ip_usa=ip[ip$LOCATION==&quot;USA&quot;,]</code></pre>
+<pre class="r"><code>library(MASS)
+ fit2=fitdistr(ip_usa$growthrate, &quot;t&quot;, 
+                 start = list(m = mean(ip_usa$growthrate), s = sd(ip_usa$growthrate), df = 3), 
+                 method = &quot;L-BFGS-B&quot;, 
+                 lower = c(-3, 0.0001, 1),
+                 upper = c(3, 3, 10))
+ objective_function &lt;- function(params, data) {
+  d &lt;- params[1]
+  l &lt;- params[2]
+  v &lt;- params[3]
+  
+  log_density &lt;- log(pdf_student_t(data, d, l, v))
+  return(-sum(log_density))}
+ optim(
+  par = c(d = fit2$estimate[&quot;m&quot;], l = fit2$estimate[&quot;s&quot;], v = fit2$estimate[&quot;df&quot;]),  # use fitted values here
+  fn = objective_function,
+  data = ip_usa$growthrate,
+   method = &quot;Nelder-Mead&quot;, 
+                 #lower = c(-3, 0.0001, 1),
+                #upper = c(3, 3, 30)
+ 
+)</code></pre>
+<pre><code>## Warning in log(pdf_student_t(data, d, l, v)): NaNs produced
+
+## Warning in log(pdf_student_t(data, d, l, v)): NaNs produced
+
+## Warning in log(pdf_student_t(data, d, l, v)): NaNs produced
+
+## Warning in log(pdf_student_t(data, d, l, v)): NaNs produced
+
+## Warning in log(pdf_student_t(data, d, l, v)): NaNs produced
+
+## Warning in log(pdf_student_t(data, d, l, v)): NaNs produced
+
+## Warning in log(pdf_student_t(data, d, l, v)): NaNs produced
+
+## Warning in log(pdf_student_t(data, d, l, v)): NaNs produced
+
+## Warning in log(pdf_student_t(data, d, l, v)): NaNs produced
+
+## Warning in log(pdf_student_t(data, d, l, v)): NaNs produced
+
+## Warning in log(pdf_student_t(data, d, l, v)): NaNs produced
+
+## Warning in log(pdf_student_t(data, d, l, v)): NaNs produced
+
+## Warning in log(pdf_student_t(data, d, l, v)): NaNs produced
+
+## Warning in log(pdf_student_t(data, d, l, v)): NaNs produced
+
+## Warning in log(pdf_student_t(data, d, l, v)): NaNs produced</code></pre>
+<pre><code>## $par
+##         d.m         l.s        v.df 
+## 0.005196051 0.002517946 4.461651929 
+## 
+## $value
+## [1] -1521.843
+## 
+## $counts
+## function gradient 
+##      208       NA 
+## 
+## $convergence
+## [1] 0
+## 
+## $message
+## NULL</code></pre>
+<pre class="r"><code># Initialize an empty data frame to store results
+studentT &lt;- data.frame(
+  location = character(),
+  opt_m = numeric(),
+  opt_s = numeric(),
+  opt_df = numeric(),
+  stringsAsFactors = FALSE
+)
+
+# Unique locations
+unique_locations &lt;- unique(ip$LOCATION)
+
+# Loop over each unique location
+for(loc in unique_locations) {
+  
+  # Subset the data for the current location
+  ip_subset &lt;- subset(ip, LOCATION== loc)
+  
+  
+    
+    # Fit initial distribution
+    
+
+    # Perform optimization
+    opt_result &lt;- optim(
+      par = c(d = mean(ip_subset$growthrate), l =sd(ip_subset$growthrate), v = 3),
+      fn = objective_function,
+      data = ip_subset$growthrate,
+      method = &quot;Nelder-Mead&quot;, 
+      #lower = c(-3, 0.0001, 1),
+      #upper = c(3, 3, 30)
+    )
+    
+    # Store results in data frame
+    new_row &lt;- data.frame(
+      location = loc,
+      opt_m = opt_result$par[1],
+      opt_s = opt_result$par[2],
+      opt_df = opt_result$par[3],
+      stringsAsFactors = FALSE
+      
+    
+    )
+    
+  studentT &lt;- bind_rows(studentT, new_row)
+  }</code></pre>
+<pre><code>## Warning in log(pdf_student_t(data, d, l, v)): NaNs produced
+
+## Warning in log(pdf_student_t(data, d, l, v)): NaNs produced
+
+## Warning in log(pdf_student_t(data, d, l, v)): NaNs produced
+
+## Warning in log(pdf_student_t(data, d, l, v)): NaNs produced
+
+## Warning in log(pdf_student_t(data, d, l, v)): NaNs produced
+
+## Warning in log(pdf_student_t(data, d, l, v)): NaNs produced
+
+## Warning in log(pdf_student_t(data, d, l, v)): NaNs produced
+
+## Warning in log(pdf_student_t(data, d, l, v)): NaNs produced
+
+## Warning in log(pdf_student_t(data, d, l, v)): NaNs produced
+
+## Warning in log(pdf_student_t(data, d, l, v)): NaNs produced
+
+## Warning in log(pdf_student_t(data, d, l, v)): NaNs produced
+
+## Warning in log(pdf_student_t(data, d, l, v)): NaNs produced
+
+## Warning in log(pdf_student_t(data, d, l, v)): NaNs produced
+
+## Warning in log(pdf_student_t(data, d, l, v)): NaNs produced
+
+## Warning in log(pdf_student_t(data, d, l, v)): NaNs produced
+
+## Warning in log(pdf_student_t(data, d, l, v)): NaNs produced
+
+## Warning in log(pdf_student_t(data, d, l, v)): NaNs produced
+
+## Warning in log(pdf_student_t(data, d, l, v)): NaNs produced
+
+## Warning in log(pdf_student_t(data, d, l, v)): NaNs produced
+
+## Warning in log(pdf_student_t(data, d, l, v)): NaNs produced
+
+## Warning in log(pdf_student_t(data, d, l, v)): NaNs produced
+
+## Warning in log(pdf_student_t(data, d, l, v)): NaNs produced
+
+## Warning in log(pdf_student_t(data, d, l, v)): NaNs produced
+
+## Warning in log(pdf_student_t(data, d, l, v)): NaNs produced
+
+## Warning in log(pdf_student_t(data, d, l, v)): NaNs produced
+
+## Warning in log(pdf_student_t(data, d, l, v)): NaNs produced
+
+## Warning in log(pdf_student_t(data, d, l, v)): NaNs produced
+
+## Warning in log(pdf_student_t(data, d, l, v)): NaNs produced
+
+## Warning in log(pdf_student_t(data, d, l, v)): NaNs produced
+
+## Warning in log(pdf_student_t(data, d, l, v)): NaNs produced
+
+## Warning in log(pdf_student_t(data, d, l, v)): NaNs produced
+
+## Warning in log(pdf_student_t(data, d, l, v)): NaNs produced
+
+## Warning in log(pdf_student_t(data, d, l, v)): NaNs produced
+
+## Warning in log(pdf_student_t(data, d, l, v)): NaNs produced
+
+## Warning in log(pdf_student_t(data, d, l, v)): NaNs produced
+
+## Warning in log(pdf_student_t(data, d, l, v)): NaNs produced
+
+## Warning in log(pdf_student_t(data, d, l, v)): NaNs produced
+
+## Warning in log(pdf_student_t(data, d, l, v)): NaNs produced
+
+## Warning in log(pdf_student_t(data, d, l, v)): NaNs produced
+
+## Warning in log(pdf_student_t(data, d, l, v)): NaNs produced
+
+## Warning in log(pdf_student_t(data, d, l, v)): NaNs produced
+
+## Warning in log(pdf_student_t(data, d, l, v)): NaNs produced
+
+## Warning in log(pdf_student_t(data, d, l, v)): NaNs produced
+
+## Warning in log(pdf_student_t(data, d, l, v)): NaNs produced
+
+## Warning in log(pdf_student_t(data, d, l, v)): NaNs produced
+
+## Warning in log(pdf_student_t(data, d, l, v)): NaNs produced
+
+## Warning in log(pdf_student_t(data, d, l, v)): NaNs produced
+
+## Warning in log(pdf_student_t(data, d, l, v)): NaNs produced
+
+## Warning in log(pdf_student_t(data, d, l, v)): NaNs produced
+
+## Warning in log(pdf_student_t(data, d, l, v)): NaNs produced
+
+## Warning in log(pdf_student_t(data, d, l, v)): NaNs produced
+
+## Warning in log(pdf_student_t(data, d, l, v)): NaNs produced
+
+## Warning in log(pdf_student_t(data, d, l, v)): NaNs produced
+
+## Warning in log(pdf_student_t(data, d, l, v)): NaNs produced
+
+## Warning in log(pdf_student_t(data, d, l, v)): NaNs produced
+
+## Warning in log(pdf_student_t(data, d, l, v)): NaNs produced
+
+## Warning in log(pdf_student_t(data, d, l, v)): NaNs produced
+
+## Warning in log(pdf_student_t(data, d, l, v)): NaNs produced
+
+## Warning in log(pdf_student_t(data, d, l, v)): NaNs produced
+
+## Warning in log(pdf_student_t(data, d, l, v)): NaNs produced
+
+## Warning in log(pdf_student_t(data, d, l, v)): NaNs produced
+
+## Warning in log(pdf_student_t(data, d, l, v)): NaNs produced
+
+## Warning in log(pdf_student_t(data, d, l, v)): NaNs produced
+
+## Warning in log(pdf_student_t(data, d, l, v)): NaNs produced
+
+## Warning in log(pdf_student_t(data, d, l, v)): NaNs produced
+
+## Warning in log(pdf_student_t(data, d, l, v)): NaNs produced
+
+## Warning in log(pdf_student_t(data, d, l, v)): NaNs produced
+
+## Warning in log(pdf_student_t(data, d, l, v)): NaNs produced
+
+## Warning in log(pdf_student_t(data, d, l, v)): NaNs produced
+
+## Warning in log(pdf_student_t(data, d, l, v)): NaNs produced
+
+## Warning in log(pdf_student_t(data, d, l, v)): NaNs produced
+
+## Warning in log(pdf_student_t(data, d, l, v)): NaNs produced
+
+## Warning in log(pdf_student_t(data, d, l, v)): NaNs produced
+
+## Warning in log(pdf_student_t(data, d, l, v)): NaNs produced
+
+## Warning in log(pdf_student_t(data, d, l, v)): NaNs produced
+
+## Warning in log(pdf_student_t(data, d, l, v)): NaNs produced
+
+## Warning in log(pdf_student_t(data, d, l, v)): NaNs produced
+
+## Warning in log(pdf_student_t(data, d, l, v)): NaNs produced
+
+## Warning in log(pdf_student_t(data, d, l, v)): NaNs produced
+
+## Warning in log(pdf_student_t(data, d, l, v)): NaNs produced
+
+## Warning in log(pdf_student_t(data, d, l, v)): NaNs produced
+
+## Warning in log(pdf_student_t(data, d, l, v)): NaNs produced
+
+## Warning in log(pdf_student_t(data, d, l, v)): NaNs produced
+
+## Warning in log(pdf_student_t(data, d, l, v)): NaNs produced
+
+## Warning in log(pdf_student_t(data, d, l, v)): NaNs produced
+
+## Warning in log(pdf_student_t(data, d, l, v)): NaNs produced
+
+## Warning in log(pdf_student_t(data, d, l, v)): NaNs produced
+
+## Warning in log(pdf_student_t(data, d, l, v)): NaNs produced
+
+## Warning in log(pdf_student_t(data, d, l, v)): NaNs produced
+
+## Warning in log(pdf_student_t(data, d, l, v)): NaNs produced
+
+## Warning in log(pdf_student_t(data, d, l, v)): NaNs produced
+
+## Warning in log(pdf_student_t(data, d, l, v)): NaNs produced
+
+## Warning in log(pdf_student_t(data, d, l, v)): NaNs produced
+
+## Warning in log(pdf_student_t(data, d, l, v)): NaNs produced
+
+## Warning in log(pdf_student_t(data, d, l, v)): NaNs produced
+
+## Warning in log(pdf_student_t(data, d, l, v)): NaNs produced
+
+## Warning in log(pdf_student_t(data, d, l, v)): NaNs produced
+
+## Warning in log(pdf_student_t(data, d, l, v)): NaNs produced
+
+## Warning in log(pdf_student_t(data, d, l, v)): NaNs produced
+
+## Warning in log(pdf_student_t(data, d, l, v)): NaNs produced
+
+## Warning in log(pdf_student_t(data, d, l, v)): NaNs produced
+
+## Warning in log(pdf_student_t(data, d, l, v)): NaNs produced
+
+## Warning in log(pdf_student_t(data, d, l, v)): NaNs produced
+
+## Warning in log(pdf_student_t(data, d, l, v)): NaNs produced
+
+## Warning in log(pdf_student_t(data, d, l, v)): NaNs produced
+
+## Warning in log(pdf_student_t(data, d, l, v)): NaNs produced
+
+## Warning in log(pdf_student_t(data, d, l, v)): NaNs produced
+
+## Warning in log(pdf_student_t(data, d, l, v)): NaNs produced
+
+## Warning in log(pdf_student_t(data, d, l, v)): NaNs produced
+
+## Warning in log(pdf_student_t(data, d, l, v)): NaNs produced
+
+## Warning in log(pdf_student_t(data, d, l, v)): NaNs produced
+
+## Warning in log(pdf_student_t(data, d, l, v)): NaNs produced
+
+## Warning in log(pdf_student_t(data, d, l, v)): NaNs produced
+
+## Warning in log(pdf_student_t(data, d, l, v)): NaNs produced
+
+## Warning in log(pdf_student_t(data, d, l, v)): NaNs produced
+
+## Warning in log(pdf_student_t(data, d, l, v)): NaNs produced
+
+## Warning in log(pdf_student_t(data, d, l, v)): NaNs produced
+
+## Warning in log(pdf_student_t(data, d, l, v)): NaNs produced
+
+## Warning in log(pdf_student_t(data, d, l, v)): NaNs produced
+
+## Warning in log(pdf_student_t(data, d, l, v)): NaNs produced
+
+## Warning in log(pdf_student_t(data, d, l, v)): NaNs produced
+
+## Warning in log(pdf_student_t(data, d, l, v)): NaNs produced
+
+## Warning in log(pdf_student_t(data, d, l, v)): NaNs produced
+
+## Warning in log(pdf_student_t(data, d, l, v)): NaNs produced
+
+## Warning in log(pdf_student_t(data, d, l, v)): NaNs produced
+
+## Warning in log(pdf_student_t(data, d, l, v)): NaNs produced
+
+## Warning in log(pdf_student_t(data, d, l, v)): NaNs produced
+
+## Warning in log(pdf_student_t(data, d, l, v)): NaNs produced
+
+## Warning in log(pdf_student_t(data, d, l, v)): NaNs produced
+
+## Warning in log(pdf_student_t(data, d, l, v)): NaNs produced
+
+## Warning in log(pdf_student_t(data, d, l, v)): NaNs produced
+
+## Warning in log(pdf_student_t(data, d, l, v)): NaNs produced
+
+## Warning in log(pdf_student_t(data, d, l, v)): NaNs produced
+
+## Warning in log(pdf_student_t(data, d, l, v)): NaNs produced
+
+## Warning in log(pdf_student_t(data, d, l, v)): NaNs produced
+
+## Warning in log(pdf_student_t(data, d, l, v)): NaNs produced
+
+## Warning in log(pdf_student_t(data, d, l, v)): NaNs produced
+
+## Warning in log(pdf_student_t(data, d, l, v)): NaNs produced
+
+## Warning in log(pdf_student_t(data, d, l, v)): NaNs produced
+
+## Warning in log(pdf_student_t(data, d, l, v)): NaNs produced
+
+## Warning in log(pdf_student_t(data, d, l, v)): NaNs produced
+
+## Warning in log(pdf_student_t(data, d, l, v)): NaNs produced
+
+## Warning in log(pdf_student_t(data, d, l, v)): NaNs produced
+
+## Warning in log(pdf_student_t(data, d, l, v)): NaNs produced
+
+## Warning in log(pdf_student_t(data, d, l, v)): NaNs produced
+
+## Warning in log(pdf_student_t(data, d, l, v)): NaNs produced
+
+## Warning in log(pdf_student_t(data, d, l, v)): NaNs produced
+
+## Warning in log(pdf_student_t(data, d, l, v)): NaNs produced
+
+## Warning in log(pdf_student_t(data, d, l, v)): NaNs produced
+
+## Warning in log(pdf_student_t(data, d, l, v)): NaNs produced
+
+## Warning in log(pdf_student_t(data, d, l, v)): NaNs produced
+
+## Warning in log(pdf_student_t(data, d, l, v)): NaNs produced
+
+## Warning in log(pdf_student_t(data, d, l, v)): NaNs produced
+
+## Warning in log(pdf_student_t(data, d, l, v)): NaNs produced
+
+## Warning in log(pdf_student_t(data, d, l, v)): NaNs produced
+
+## Warning in log(pdf_student_t(data, d, l, v)): NaNs produced
+
+## Warning in log(pdf_student_t(data, d, l, v)): NaNs produced
+
+## Warning in log(pdf_student_t(data, d, l, v)): NaNs produced
+
+## Warning in log(pdf_student_t(data, d, l, v)): NaNs produced
+
+## Warning in log(pdf_student_t(data, d, l, v)): NaNs produced
+
+## Warning in log(pdf_student_t(data, d, l, v)): NaNs produced
+
+## Warning in log(pdf_student_t(data, d, l, v)): NaNs produced
+
+## Warning in log(pdf_student_t(data, d, l, v)): NaNs produced
+
+## Warning in log(pdf_student_t(data, d, l, v)): NaNs produced
+
+## Warning in log(pdf_student_t(data, d, l, v)): NaNs produced
+
+## Warning in log(pdf_student_t(data, d, l, v)): NaNs produced
+
+## Warning in log(pdf_student_t(data, d, l, v)): NaNs produced
+
+## Warning in log(pdf_student_t(data, d, l, v)): NaNs produced
+
+## Warning in log(pdf_student_t(data, d, l, v)): NaNs produced
+
+## Warning in log(pdf_student_t(data, d, l, v)): NaNs produced
+
+## Warning in log(pdf_student_t(data, d, l, v)): NaNs produced
+
+## Warning in log(pdf_student_t(data, d, l, v)): NaNs produced
+
+## Warning in log(pdf_student_t(data, d, l, v)): NaNs produced
+
+## Warning in log(pdf_student_t(data, d, l, v)): NaNs produced
+
+## Warning in log(pdf_student_t(data, d, l, v)): NaNs produced
+
+## Warning in log(pdf_student_t(data, d, l, v)): NaNs produced
+
+## Warning in log(pdf_student_t(data, d, l, v)): NaNs produced
+
+## Warning in log(pdf_student_t(data, d, l, v)): NaNs produced
+
+## Warning in log(pdf_student_t(data, d, l, v)): NaNs produced
+
+## Warning in log(pdf_student_t(data, d, l, v)): NaNs produced
+
+## Warning in log(pdf_student_t(data, d, l, v)): NaNs produced
+
+## Warning in log(pdf_student_t(data, d, l, v)): NaNs produced
+
+## Warning in log(pdf_student_t(data, d, l, v)): NaNs produced
+
+## Warning in log(pdf_student_t(data, d, l, v)): NaNs produced
+
+## Warning in log(pdf_student_t(data, d, l, v)): NaNs produced
+
+## Warning in log(pdf_student_t(data, d, l, v)): NaNs produced
+
+## Warning in log(pdf_student_t(data, d, l, v)): NaNs produced
+
+## Warning in log(pdf_student_t(data, d, l, v)): NaNs produced
+
+## Warning in log(pdf_student_t(data, d, l, v)): NaNs produced
+
+## Warning in log(pdf_student_t(data, d, l, v)): NaNs produced
+
+## Warning in log(pdf_student_t(data, d, l, v)): NaNs produced
+
+## Warning in log(pdf_student_t(data, d, l, v)): NaNs produced
+
+## Warning in log(pdf_student_t(data, d, l, v)): NaNs produced
+
+## Warning in log(pdf_student_t(data, d, l, v)): NaNs produced
+
+## Warning in log(pdf_student_t(data, d, l, v)): NaNs produced
+
+## Warning in log(pdf_student_t(data, d, l, v)): NaNs produced
+
+## Warning in log(pdf_student_t(data, d, l, v)): NaNs produced
+
+## Warning in log(pdf_student_t(data, d, l, v)): NaNs produced
+
+## Warning in log(pdf_student_t(data, d, l, v)): NaNs produced
+
+## Warning in log(pdf_student_t(data, d, l, v)): NaNs produced
+
+## Warning in log(pdf_student_t(data, d, l, v)): NaNs produced</code></pre>
+<pre class="r"><code># View the results data frame
+print(studentT)</code></pre>
+<pre><code>##         location       opt_m       opt_s    opt_df
+## d...1        AUT 0.014891368 0.002172285  3.626243
+## d...2        BEL 0.016617616 0.002108240  4.333750
+## d...3        BGR 0.019259918 0.005444479  8.322290
+## d...4        BRA 0.016402045 0.003230761  2.879242
+## d...5        CAN 0.009822828 0.002013870 10.895452
+## d...6        CHL 0.017497723 0.003274205  9.377957
+## d...7        COL 0.016351828 0.002488640  4.153267
+## d...8        CZE 0.018511698 0.002454261  3.077221
+## d...9        DEU 0.012108469 0.001754221  4.350692
+## d...10       DNK 0.024248283 0.001249174  4.031760
+## d...11      EA19 0.008775137 0.001779436  5.894504
+## d...12       ESP 0.011623353 0.001834276  2.314585
+## d...13       EST 0.021516370 0.005966453  6.789221
+## d...14 EU27_2020 0.008687726 0.001812815  5.930977
+## d...15       FIN 0.016820641 0.002817865  3.008355
+## d...16       FRA 0.012102786 0.001105085  7.310810
+## d...17       G-7 0.005354759 0.002076978  7.589369
+## d...18       GBR 0.009899258 0.001629723  3.953371
+## d...19       GRC 0.018948439 0.001960556  3.144176
+## d...20       HRV 0.021140278 0.001496353  5.612522
+## d...21       HUN 0.021460122 0.004213812  3.872693
+## d...22       IND 0.012087270 0.005809426  4.627098
+## d...23       IRL 0.032563222 0.006574945  4.234302
+## d...24       ISL 0.022097759 0.006827743  3.565743
+## d...25       ISR 0.015673568 0.003843476  6.188346
+## d...26       ITA 0.013454374 0.001160977  2.967590
+## d...27       KOR 0.019377570 0.006454552 10.508622
+## d...28       LTU 0.066013885 0.006446277 75.100167
+## d...29       LUX 0.030526682 0.001549647  3.590702
+## d...30       LVA 0.013201142 0.005655534 10.238238
+## d...31       MEX 0.009069864 0.001642735  3.512235
+## d...32       NLD 0.018981652 0.001775325  4.185316
+## d...33       NOR 0.020627384 0.003742288  2.369138
+## d...34      OECD 0.004778253 0.002292763 10.693738
+## d...35     OECDE 0.007151555 0.002116932  5.364809
+## d...36       POL 0.018594318 0.004374682  2.952431
+## d...37       PRT 0.023919922 0.001582256  4.791280
+## d...38       ROU 0.012295971 0.003292646  2.312019
+## d...39       RUS 0.013689073 0.001348019  2.296780
+## d...40       SVK 0.022325621 0.003109459  1.628996
+## d...41       SVN 0.018931374 0.002985321  3.714934
+## d...42       SWE 0.013207260 0.002065843  3.321444
+## d...43       TUR 0.025524664 0.005023437  3.070944
+## d...44       USA 0.005195909 0.002517305  4.461275</code></pre>
+<pre class="r"><code># Custom cauchy function
+cauchy_custom &lt;- function(x, delta, p) {
+  1 / (delta * pi) * (1 + ((x - p) / delta)^2)^(-1)
+}</code></pre>
+<pre class="r"><code># Objective function for MLE
+ cauchy_custom_objective &lt;- function(params, data) {
+  delta &lt;- params[1]
+  p &lt;- params[2]
+  
+  # Calculate likelihood
+  likelihood &lt;- prod(cauchy_custom(data, delta, p))
+  
+  # Return negative log-likelihood because optim() looks for the minimum
+  return(-log(likelihood))
+}</code></pre>
+<pre class="r"><code>cauchy_custom_cdf &lt;- function(x, delta, p) {
+  sapply(x, function(x_i) {
+    integrate(function(u) cauchy_custom_pdf(u, delta, p), -Inf, x_i)$value
+  })
+}</code></pre>
+<pre class="r"><code>#test optional techniques 
+# Assume ip_usa$growthrate contains the data you&#39;re interested in
+initial_values &lt;- c(1, 0.5)  # Replace with sensible initial values
+
+opt_result_usa &lt;- optim(
+  par = initial_values,
+  fn = cauchy_custom_objective,
+  data = ip_usa$growthrate,
+  method = &quot;Nelder-Mead&quot;
+    # Upper bounds for delta and p
+)</code></pre>
+<pre class="r"><code># Initialize an empty data frame to store results with column names
+cauchy_params &lt;- data.frame(
+  LOCATION = character(),
+  delta_opt = numeric(),
+  p_opt = numeric(),
+  stringsAsFactors = FALSE
+)
+
+# Unique locations in your data
+unique_locations &lt;- unique(ip$LOCATION)
+
+# Loop through each unique location
+for (loc in unique_locations) {
+  # Use tryCatch to skip errors
+  
+    # Subset data for the current location
+    ip_subset &lt;- subset(ip, LOCATION == loc)
+    
+    # Initial parameter estimates
+    initial_values &lt;- c(delta = 1, p = 0.5)
+    
+    # Perform optimization for the current location
+    opt_result &lt;- optim(
+      par = initial_values,
+      fn = cauchy_custom_objective,
+      data = ip_subset$growthrate,
+      method = &quot;Nelder-Mead&quot;
+    )
+    
+    # Create a new row for results
+    new_row &lt;- data.frame(
+      LOCATION = loc,
+      delta_opt = opt_result$par[1],
+      p_opt = opt_result$par[2],
+      stringsAsFactors = FALSE
+    )
+    
+    # Append the new row to the results data frame
+    cauchy_params &lt;- rbind(cauchy_params, new_row)
+    
+  }</code></pre>
+<pre><code>## Warning in log(likelihood): NaNs produced
+
+## Warning in log(likelihood): NaNs produced
+
+## Warning in log(likelihood): NaNs produced
+
+## Warning in log(likelihood): NaNs produced
+
+## Warning in log(likelihood): NaNs produced
+
+## Warning in log(likelihood): NaNs produced
+
+## Warning in log(likelihood): NaNs produced
+
+## Warning in log(likelihood): NaNs produced
+
+## Warning in log(likelihood): NaNs produced</code></pre>
+<pre class="r"><code># Initialize an empty data frame to store test results
+cauchy_tests &lt;- data.frame(
+  LOCATION = character(),
+  CVM_Statistic = numeric(),
+  CVM_P_Value = numeric(),
+  KS_Statistic = numeric(),
+  KS_P_Value = numeric(),
+  AD_Statistic = numeric(),
+  AD_P_Value = numeric(),
+  stringsAsFactors = FALSE
+)
+
+# Loop through each unique location
+for (loc in unique(ip$LOCATION)) {
+  tryCatch({
+     # Subset data for the current location
+    ip_subset &lt;- subset(ip, LOCATION == loc)
+    
+    # Get the estimated parameters from cauchy_params
+    delta &lt;- cauchy_params[cauchy_params$LOCATION == loc, &quot;delta_opt&quot;]
+    p &lt;- cauchy_params[cauchy_params$LOCATION == loc, &quot;p_opt&quot;]
+    
+    # Custom CDF function using the estimated parameters
+    custom_cdfgen &lt;- function(x) {
+      cauchy_custom_cdf(x, delta, p)
+    }
+    
+    # Perform the CVM test
+    cvm_test &lt;- goftest::cvm.test(ip_subset$growthrate, nullname = &quot;custom_cdfgen&quot;, estimated = TRUE)
+    
+    # Perform the KS test
+    ks_test &lt;- ks.test(ip_subset$growthrate, &quot;custom_cdfgen&quot;)
+    
+    # Perform the Anderson-Darling test
+    ad_test &lt;- goftest::ad.test(ip_subset$growthrate, &quot;custom_cdfgen&quot;)
+    
+    temp_new_tests &lt;- data.frame(
+      LOCATION = loc,
+      CVM_Statistic = cvm_test$statistic,
+      CVM_P_Value = cvm_test$p.value,
+      KS_Statistic = ks_test$statistic,
+      KS_P_Value = ks_test$p.value,
+      AD_Statistic = ad_test$statistic,
+      AD_P_Value = ad_test$p.value,
+      stringsAsFactors = FALSE
+    )
+    
+    # Append to the cauchy_tests
+    cauchy_tests &lt;- rbind(cauchy_tests, temp_new_tests)
+    
+  }, error = function(e) {
+    message(&quot;An error occurred for location &quot;, loc, &quot;; skipping to next location.&quot;)
+  })
+}</code></pre>
+<pre><code>## Warning in ks.test.default(ip_subset$growthrate, &quot;custom_cdfgen&quot;): ties should
+## not be present for the Kolmogorov-Smirnov test</code></pre>
+<pre><code>## An error occurred for location AUT; skipping to next location.</code></pre>
+<pre><code>## An error occurred for location BEL; skipping to next location.</code></pre>
+<pre><code>## An error occurred for location BGR; skipping to next location.</code></pre>
+<pre><code>## An error occurred for location BRA; skipping to next location.</code></pre>
+<pre><code>## An error occurred for location CAN; skipping to next location.</code></pre>
+<pre><code>## An error occurred for location CHL; skipping to next location.</code></pre>
+<pre><code>## Warning in ks.test.default(ip_subset$growthrate, &quot;custom_cdfgen&quot;): ties should
+## not be present for the Kolmogorov-Smirnov test</code></pre>
+<pre><code>## An error occurred for location COL; skipping to next location.</code></pre>
+<pre><code>## Warning in ks.test.default(ip_subset$growthrate, &quot;custom_cdfgen&quot;): ties should
+## not be present for the Kolmogorov-Smirnov test</code></pre>
+<pre><code>## An error occurred for location CZE; skipping to next location.</code></pre>
+<pre><code>## Warning in ks.test.default(ip_subset$growthrate, &quot;custom_cdfgen&quot;): ties should
+## not be present for the Kolmogorov-Smirnov test</code></pre>
+<pre><code>## An error occurred for location DEU; skipping to next location.</code></pre>
+<pre><code>## Warning in ks.test.default(ip_subset$growthrate, &quot;custom_cdfgen&quot;): ties should
+## not be present for the Kolmogorov-Smirnov test</code></pre>
+<pre><code>## An error occurred for location DNK; skipping to next location.</code></pre>
+<pre><code>## Warning in ks.test.default(ip_subset$growthrate, &quot;custom_cdfgen&quot;): ties should
+## not be present for the Kolmogorov-Smirnov test</code></pre>
+<pre><code>## An error occurred for location EA19; skipping to next location.</code></pre>
+<pre><code>## An error occurred for location ESP; skipping to next location.</code></pre>
+<pre><code>## Warning in ks.test.default(ip_subset$growthrate, &quot;custom_cdfgen&quot;): ties should
+## not be present for the Kolmogorov-Smirnov test</code></pre>
+<pre><code>## An error occurred for location EST; skipping to next location.</code></pre>
+<pre><code>## Warning in ks.test.default(ip_subset$growthrate, &quot;custom_cdfgen&quot;): ties should
+## not be present for the Kolmogorov-Smirnov test</code></pre>
+<pre><code>## An error occurred for location EU27_2020; skipping to next location.</code></pre>
+<pre><code>## Warning in ks.test.default(ip_subset$growthrate, &quot;custom_cdfgen&quot;): ties should
+## not be present for the Kolmogorov-Smirnov test</code></pre>
+<pre><code>## An error occurred for location FIN; skipping to next location.</code></pre>
+<pre><code>## Warning in ks.test.default(ip_subset$growthrate, &quot;custom_cdfgen&quot;): ties should
+## not be present for the Kolmogorov-Smirnov test</code></pre>
+<pre><code>## An error occurred for location FRA; skipping to next location.</code></pre>
+<pre><code>## An error occurred for location G-7; skipping to next location.</code></pre>
+<pre><code>## Warning in ks.test.default(ip_subset$growthrate, &quot;custom_cdfgen&quot;): ties should
+## not be present for the Kolmogorov-Smirnov test</code></pre>
+<pre><code>## An error occurred for location GBR; skipping to next location.</code></pre>
+<pre><code>## An error occurred for location GRC; skipping to next location.</code></pre>
+<pre><code>## An error occurred for location HRV; skipping to next location.</code></pre>
+<pre><code>## Warning in ks.test.default(ip_subset$growthrate, &quot;custom_cdfgen&quot;): ties should
+## not be present for the Kolmogorov-Smirnov test</code></pre>
+<pre><code>## An error occurred for location HUN; skipping to next location.</code></pre>
+<pre><code>## An error occurred for location IND; skipping to next location.</code></pre>
+<pre><code>## Warning in ks.test.default(ip_subset$growthrate, &quot;custom_cdfgen&quot;): ties should
+## not be present for the Kolmogorov-Smirnov test</code></pre>
+<pre><code>## An error occurred for location IRL; skipping to next location.</code></pre>
+<pre><code>## An error occurred for location ISL; skipping to next location.</code></pre>
+<pre><code>## Warning in ks.test.default(ip_subset$growthrate, &quot;custom_cdfgen&quot;): ties should
+## not be present for the Kolmogorov-Smirnov test</code></pre>
+<pre><code>## An error occurred for location ISR; skipping to next location.</code></pre>
+<pre><code>## Warning in ks.test.default(ip_subset$growthrate, &quot;custom_cdfgen&quot;): ties should
+## not be present for the Kolmogorov-Smirnov test</code></pre>
+<pre><code>## An error occurred for location ITA; skipping to next location.</code></pre>
+<pre><code>## Warning in ks.test.default(ip_subset$growthrate, &quot;custom_cdfgen&quot;): ties should
+## not be present for the Kolmogorov-Smirnov test</code></pre>
+<pre><code>## An error occurred for location KOR; skipping to next location.</code></pre>
+<pre><code>## An error occurred for location LTU; skipping to next location.</code></pre>
+<pre><code>## An error occurred for location LUX; skipping to next location.</code></pre>
+<pre><code>## Warning in ks.test.default(ip_subset$growthrate, &quot;custom_cdfgen&quot;): ties should
+## not be present for the Kolmogorov-Smirnov test</code></pre>
+<pre><code>## An error occurred for location LVA; skipping to next location.</code></pre>
+<pre><code>## Warning in ks.test.default(ip_subset$growthrate, &quot;custom_cdfgen&quot;): ties should
+## not be present for the Kolmogorov-Smirnov test</code></pre>
+<pre><code>## An error occurred for location MEX; skipping to next location.</code></pre>
+<pre><code>## Warning in ks.test.default(ip_subset$growthrate, &quot;custom_cdfgen&quot;): ties should
+## not be present for the Kolmogorov-Smirnov test</code></pre>
+<pre><code>## An error occurred for location NLD; skipping to next location.</code></pre>
+<pre><code>## Warning in ks.test.default(ip_subset$growthrate, &quot;custom_cdfgen&quot;): ties should
+## not be present for the Kolmogorov-Smirnov test</code></pre>
+<pre><code>## An error occurred for location NOR; skipping to next location.</code></pre>
+<pre><code>## An error occurred for location OECD; skipping to next location.</code></pre>
+<pre><code>## An error occurred for location OECDE; skipping to next location.</code></pre>
+<pre><code>## Warning in ks.test.default(ip_subset$growthrate, &quot;custom_cdfgen&quot;): ties should
+## not be present for the Kolmogorov-Smirnov test</code></pre>
+<pre><code>## An error occurred for location POL; skipping to next location.</code></pre>
+<pre><code>## An error occurred for location PRT; skipping to next location.</code></pre>
+<pre><code>## Warning in ks.test.default(ip_subset$growthrate, &quot;custom_cdfgen&quot;): ties should
+## not be present for the Kolmogorov-Smirnov test</code></pre>
+<pre><code>## An error occurred for location ROU; skipping to next location.</code></pre>
+<pre><code>## An error occurred for location RUS; skipping to next location.</code></pre>
+<pre><code>## Warning in ks.test.default(ip_subset$growthrate, &quot;custom_cdfgen&quot;): ties should
+## not be present for the Kolmogorov-Smirnov test</code></pre>
+<pre><code>## An error occurred for location SVK; skipping to next location.</code></pre>
+<pre><code>## Warning in ks.test.default(ip_subset$growthrate, &quot;custom_cdfgen&quot;): ties should
+## not be present for the Kolmogorov-Smirnov test</code></pre>
+<pre><code>## An error occurred for location SVN; skipping to next location.</code></pre>
+<pre><code>## Warning in ks.test.default(ip_subset$growthrate, &quot;custom_cdfgen&quot;): ties should
+## not be present for the Kolmogorov-Smirnov test</code></pre>
+<pre><code>## An error occurred for location SWE; skipping to next location.</code></pre>
+<pre><code>## Warning in ks.test.default(ip_subset$growthrate, &quot;custom_cdfgen&quot;): ties should
+## not be present for the Kolmogorov-Smirnov test</code></pre>
+<pre><code>## An error occurred for location TUR; skipping to next location.</code></pre>
+<pre><code>## An error occurred for location USA; skipping to next location.</code></pre>
+<pre class="r"><code># Remove row names
+row.names(cauchy_tests) &lt;- NULL
+
+# Check the results
+print(cauchy_tests)</code></pre>
+<pre><code>## [1] LOCATION      CVM_Statistic CVM_P_Value   KS_Statistic  KS_P_Value   
+## [6] AD_Statistic  AD_P_Value   
+## &lt;0 rows&gt; (or 0-length row.names)</code></pre>
 
 
 
