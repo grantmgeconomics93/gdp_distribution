@@ -103,7 +103,7 @@ average_growthrate_by_time <- ip %>%
 ```
 ```{r}
 #turn to list to get ready for mle
-usgdp_list=usGDPC1_1_%>%drop_na%>%as.list(usGDPC1_1_$growthrate)
+usgdp_list=usGDPC1_1_%>%drop_na()%>%as.list(usGDPC1_1_$growthrate)
 
 
 ```
@@ -114,7 +114,7 @@ dlaplace_standard <- function(x, mu = 0, a = 1) {
   (1 / (2 * a)) * exp(1)^(-abs(x - mu) / a)
 }
 
-fit_standard <- MASS::fitdistr(usgdp_list$growthrate, dlaplace_standard, start = list(mu = 0, a = 1))
+fit_standard <- MASS::fitdistr(usgdp_list$growthrate, dlaplace_standard, start = list(mu = 4, a = 1))
 print(fit_standard)
 
 
@@ -293,64 +293,64 @@ cat("p-value:", p_value, "\n")
 
 
 ```
+
 ```{r}
-# Create an empty dataframe to store results
-result_mle <- data.frame()
+library(MASS) # Ensure the MASS package is loaded for fitdistr
 
-# Loop through unique locations
-for (location in unique(ip$LOCATION)) {
-  # Subset the data for this location
-  data <- ip[ip$LOCATION == location,]
+# Assuming your provided function definitions are already in the script
+
+# Assuming usa_data is already created and contains 'growthrate'
+# Make sure usa_data is prepared with the correct data before this step
+
+# Initialize an empty dataframe to store results
+result_mle_USA <- data.frame(Start_Row = numeric(), End_Row = numeric(), mu = numeric(), a = numeric(), b = numeric())
+
+# Define the row increment to represent 5 years of monthly data
+row_increment <- 120
+
+# Loop through the data, incrementing by 60 rows each time
+for(i in seq(1, nrow(usa_data), by = row_increment)) {
   
-  # Fit the standard distribution
-  fit_standard_gen <- MASS::fitdistr(data$growthrate, dlaplace_standard, start = list(mu = 0, a = 1))
+  current_start_row <- i
+  current_end_row <- min(i + row_increment - 1, nrow(usa_data))
   
-  # Define the objective function for b
-  objective_function_b <- function(b, data, m, a) {
-    log_density <- log(dlaplace_modified(data, m = m, a = a, b = b))
-    neg_log_likelihood <- -sum(log_density, na.rm = TRUE)
-    return(neg_log_likelihood)
+  # Subset the data for this row range
+  data_subset <- usa_data[current_start_row:current_end_row,]
+  
+  if(nrow(data_subset) > 0) {
+    # Fit the standard distribution
+    fit_standard_gen <- MASS::fitdistr(data_subset$growthrate, dlaplace_standard, start = list(mu = 0, a = 1))
+    
+    # Take m and a from the fit_standard_gen
+    m <- fit_standard_gen$estimate['mu']
+    a <- fit_standard_gen$estimate['a']
+    
+    # Optimization for b, given m and a
+    result_bgen <- optim(1, fn = function(b) objective_function_b(b, data_subset$growthrate, m, a), method ="L-BFGS-B", lower = 0.6, upper = 3.3)
+    b_estimates <- result_bgen$par
+    
+    # Fit the modified distribution with the new b parameter
+    fit_gen <- MASS::fitdistr(data_subset$growthrate, dlaplace_modified, start = list(mu = m, a = a, b = b_estimates))
+    
+    # Append the results to the result dataframe
+    result_mle_USA <- rbind(result_mle_USA, data.frame(Start_Row = current_start_row, End_Row = current_end_row, mu = m, a = a, b = b_estimates))
   }
-  
-  # Take m and a from the fit_standard_gen
-  m <- fit_standard_gen$estimate['mu']
-  a <- fit_standard_gen$estimate['a']
-  
-  # Optimization for b, given m and a
-  result_bgen <- optim(1, fn = objective_function_b, data = data$growthrate, m = m, a = a, method ="L-BFGS-B", lower = 0.6, upper = 3.3)
-
-  # Resulting estimate for b
-  b_estimates <- result_bgen$par
-
-  # Fit the modified distribution with the new b parameter
-  fit_gen <- MASS::fitdistr(data$growthrate, dlaplace_modified, start = list(mu = m, a = a, b = b_estimates))
-  
-  # Extract the estimated parameters
-  mu <- fit_gen$estimate["mu"]
-  a <- fit_gen$estimate["a"]
-  b <- fit_gen$estimate["b"]
-  
-  # Append the results to the result dataframe
-  result_mle <- rbind(result_mle, data.frame(LOCATION = location, mu = mu, a = a, b = b))
 }
-# After your existing loop
+
+# Ensure row names are removed if needed
+row.names(result_mle_USA) <- NULL
+
+# Print or return the result
+print(result_mle_USA)
+
+
+
 ```
 
 
 ```{r}
-# Calculating mean and standard deviation of b
-mean_b <- mean(result_mle$b)
-sd_b <- sd(result_mle$b)
 
-# Adding the new column with the calculated values
-result_mle$desired_values <- mean_b + (2 * sd_b) * c(1, -1)
 
-# Function to perform hypothesis testing
-calculate_p_value <- function(b_value, b_estimate, se) {
-  z_score <- abs(b_estimate - b_value) / se
-  p_value <- 2 * (1 - pnorm(z_score))
-  return(p_value)
-}
 
 # Performing the hypothesis tests and adding p-values to the dataframe
 
@@ -364,7 +364,7 @@ for (location_idx in 1:length(unique(ip$LOCATION))) {
   # ... (rest of your existing code)
   
   # Extracting the standard error for b
-  se_b <- sqrt(diag(vcov(fit_gen))["b"])
+  result_mle$se_b <- sqrt(diag(vcov(fit_gen))["b"])
   
   # P-value for b = 1
   result_mle$p_value_b1[location_idx] <- calculate_p_value(1, result_mle$b[location_idx], se_b)
@@ -691,70 +691,53 @@ for (location in unique(ip$LOCATION)) {
 
 ```
 ```{r}
-# Create a new dataframe with just the rows where LOCATION == "USA"
-usa_data <- subset(ip, LOCATION == "USA")
+library(MASS) # Ensure the MASS package is loaded for fitdistr
 
-# Create a new column counting the rows
-usa_data$row_count <- seq_len(nrow(usa_data))
+# Assuming your provided function definitions are already in the script
+
+# Assuming usa_data is already created and contains 'growthrate'
+# Make sure usa_data is prepared with the correct data before this step
 
 # Initialize an empty dataframe to store results
-result_mle_USA <- data.frame(Start_Year = numeric(), End_Year = numeric(), mu = numeric(), a = numeric(), b = numeric())
+result_mle_USA <- data.frame(Start_Row = numeric(), End_Row = numeric(), mu = numeric(), a = numeric(), b = numeric())
 
-# Define the row increment
+# Define the row increment to represent 5 years of monthly data
 row_increment <- 60
 
-# Initialize start and end for the first iteration
-current_start_row <- 1
-current_end_row <- row_increment
-
 # Loop through the data, incrementing by 60 rows each time
-while (current_end_row <= nrow(usa_data)) {
+for(i in seq(1, nrow(usa_data), by = row_increment)) {
+  
+  current_start_row <- i
+  current_end_row <- min(i + row_increment - 1, nrow(usa_data))
   
   # Subset the data for this row range
-  data_subset <- subset(usa_data, row_count >= current_start_row & row_count <= current_end_row)
+  data_subset <- usa_data[current_start_row:current_end_row,]
   
-  # Get the minimum and maximum TIME within this subset
-  start_year <- min(data_subset$TIME)
-  end_year <- max(data_subset$TIME)
-  
-  # Fit the standard distribution
-  fit_standard_gen <- MASS::fitdistr(data_subset$growthrate, dlaplace_standard, start = list(mu = 0, a = 1))
-  
-  # Define the objective function for b
-  objective_function_b <- function(b, data, m, a) {
-    log_density <- log(dlaplace_modified(data, m = m, a = a, b = b))
-    neg_log_likelihood <- -sum(log_density, na.rm = TRUE)
-    return(neg_log_likelihood)
+  if(nrow(data_subset) > 0) {
+    # Fit the standard distribution
+    fit_standard_gen <- MASS::fitdistr(data_subset$growthrate, dlaplace_standard, start = list(mu = 0, a = 1))
+    
+    # Take m and a from the fit_standard_gen
+    m <- fit_standard_gen$estimate['mu']
+    a <- fit_standard_gen$estimate['a']
+    
+    
+     
+b_estimates <- result_bgen$par
+
+    
+    # Fit the modified distribution with the new b parameter
+    fit_gen <- MASS::fitdistr(data_subset$growthrate, dlaplace_modified, start = list(mu = m, a = a, b = b_estimates))
+    
+    # Append the results to the result dataframe
+    result_mle_USA <- rbind(result_mle_USA, data.frame(Start_Row = current_start_row, End_Row = current_end_row, mu = m, a = a, b = b_estimates))
   }
-  
-  # Take m and a from the fit_standard_gen
-  m <- fit_standard_gen$estimate['mu']
-  a <- fit_standard_gen$estimate['a']
-  
-  # Optimization for b, given m and a
-  result_bgen <- optim(1, fn = objective_function_b, data = data_subset$growthrate, m = m, a = a, method = "L-BFGS-B", lower = 0.6, upper = 3.3)
-  
-  # Resulting estimate for b
-  b_estimates <- result_bgen$par
-  
-  # Append the results for this row range to the result_mle_USA dataframe
-  result_mle_USA <- rbind(result_mle_USA, data.frame(
-    Start_Year = start_year,
-    End_Year = end_year,
-    mu = m,
-    a = a,
-    b = b_estimates
-  ))
-  
-  # Move the row counter by 60
-  current_start_row <- current_end_row + 1
-  current_end_row <- current_end_row + row_increment
 }
 
-# Remove row names for a cleaner look
+# Ensure row names are removed if needed
 row.names(result_mle_USA) <- NULL
 
-# View the results
+# Print or return the result
 print(result_mle_USA)
 
 
@@ -883,24 +866,28 @@ print(result_hill)
 
 ```
 ```{r}
-pdf_student_t <- function(x, d, l, v) {
+
+pdf_student_t <- function(x, lambda, theta, v) {
+  # Ensure scale (theta) and degrees of freedom (v) are positive to prevent NaNs
+  if(theta <= 0 || v <= 0) {
+   
+    return(NaN)
+  }
+  
   # Calculate the Gamma function terms
   gamma_term1 <- gamma((v + 1) / 2)
   gamma_term2 <- gamma(v / 2)
   
   # Calculate the constant in front of the formula
-  constant <- gamma_term1 / (sqrt(v * pi) *d* gamma_term2)
+  constant <- gamma_term1 / (theta * gamma_term2 * sqrt(v * pi))
   
   # Calculate the main expression
-  main_expr <- (1 + ((1 / v) * ((x - l) / d)^2))^(-((v + 1) / 2))
+  main_expr <- (1 + (1 / v) * ((x - lambda) / theta)^2)^(-((v + 1) / 2))
   
   # Calculate the full PDF value
   pdf_value <- constant * main_expr
- 
-  
   
   return(pdf_value)
-
 }
 
 
@@ -950,7 +937,7 @@ library(MASS)
   fn = objective_function,
   data = ip_usa$growthrate,
    method = "Nelder-Mead", 
-                 #lower = c(-3, 0.0001, 1),
+                # lower = c(.2, 0.0001, 1),
                 #upper = c(3, 3, 30)
  
 )
