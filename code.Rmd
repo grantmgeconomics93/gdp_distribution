@@ -293,6 +293,10 @@ cat("p-value:", p_value, "\n")
 
 
 ```
+```{r}
+usa_data=ip[ip$LOCATION=="USA",]
+```
+
 
 ```{r}
 library(MASS) # Ensure the MASS package is loaded for fitdistr
@@ -327,6 +331,7 @@ for(i in seq(1, nrow(usa_data), by = row_increment)) {
     
     # Optimization for b, given m and a
     result_bgen <- optim(1, fn = function(b) objective_function_b(b, data_subset$growthrate, m, a), method ="L-BFGS-B", lower = 0.6, upper = 3.3)
+    
     b_estimates <- result_bgen$par
     
     # Fit the modified distribution with the new b parameter
@@ -351,26 +356,37 @@ print(result_mle_USA)
 ```{r}
 
 
-
+# Initialize the result_mle data frame before using it
+# Example: Initialize result_mle with 10 rows (replace 10 with the number of rows you expect)
+# Initialize result_mle with the correct number of rows based on unique locations
+result_mle <- data.frame(
+  LOCATION = unique(ip$LOCATION),
+  b = NA, se_b = NA, p_value_b1 = NA, p_value_b2 = NA
+)
 # Performing the hypothesis tests and adding p-values to the dataframe
 
-# Create columns for the p-values
-result_mle$p_value_b1 <- NA
-result_mle$p_value_b2 <- NA
+calculate_p_value <- function(b_value, b_estimate, se) {
+  z_score <- abs(b_estimate - b_value) / se
+  p_value <- 2 * (1 - pnorm(z_score))
+  return(p_value)
+}
 
 # Loop through unique locations
 for (location_idx in 1:length(unique(ip$LOCATION))) {
   location <- unique(ip$LOCATION)[location_idx]
   # ... (rest of your existing code)
+
   
   # Extracting the standard error for b
   result_mle$se_b <- sqrt(diag(vcov(fit_gen))["b"])
+  # Assume fit_gen is produced here, then calculate standard error and p-values
+  se_b <- sqrt(diag(vcov(fit_gen))["b"])
   
-  # P-value for b = 1
+  # Now you can safely assign values to existing rows
+  result_mle$se_b[location_idx] <- se_b
   result_mle$p_value_b1[location_idx] <- calculate_p_value(1, result_mle$b[location_idx], se_b)
-  
-  # P-value for b = 2
   result_mle$p_value_b2[location_idx] <- calculate_p_value(2, result_mle$b[location_idx], se_b)
+
 }
 
 # Remove row names
@@ -691,58 +707,9 @@ for (location in unique(ip$LOCATION)) {
 
 ```
 ```{r}
-library(MASS) # Ensure the MASS package is loaded for fitdistr
-
-# Assuming your provided function definitions are already in the script
-
-# Assuming usa_data is already created and contains 'growthrate'
-# Make sure usa_data is prepared with the correct data before this step
-
-# Initialize an empty dataframe to store results
-result_mle_USA <- data.frame(Start_Row = numeric(), End_Row = numeric(), mu = numeric(), a = numeric(), b = numeric())
-
-# Define the row increment to represent 5 years of monthly data
-row_increment <- 60
-
-# Loop through the data, incrementing by 60 rows each time
-for(i in seq(1, nrow(usa_data), by = row_increment)) {
-  
-  current_start_row <- i
-  current_end_row <- min(i + row_increment - 1, nrow(usa_data))
-  
-  # Subset the data for this row range
-  data_subset <- usa_data[current_start_row:current_end_row,]
-  
-  if(nrow(data_subset) > 0) {
-    # Fit the standard distribution
-    fit_standard_gen <- MASS::fitdistr(data_subset$growthrate, dlaplace_standard, start = list(mu = 0, a = 1))
-    
-    # Take m and a from the fit_standard_gen
-    m <- fit_standard_gen$estimate['mu']
-    a <- fit_standard_gen$estimate['a']
-    
-    
-     
-b_estimates <- result_bgen$par
-
-    
-    # Fit the modified distribution with the new b parameter
-    fit_gen <- MASS::fitdistr(data_subset$growthrate, dlaplace_modified, start = list(mu = m, a = a, b = b_estimates))
-    
-    # Append the results to the result dataframe
-    result_mle_USA <- rbind(result_mle_USA, data.frame(Start_Row = current_start_row, End_Row = current_end_row, mu = m, a = a, b = b_estimates))
-  }
-}
-
-# Ensure row names are removed if needed
-row.names(result_mle_USA) <- NULL
-
-# Print or return the result
-print(result_mle_USA)
-
-
-
+usa_data=ip[ip$LOCATION=="USA",]
 ```
+
 ```{r}
 # Create a new dataframe with just the rows where LOCATION == "USA"
 usa_data <- subset(ip, LOCATION == "USA")
