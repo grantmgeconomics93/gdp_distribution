@@ -356,13 +356,6 @@ print(result_mle_USA)
 ```{r}
 
 
-# Initialize the result_mle data frame before using it
-# Example: Initialize result_mle with 10 rows (replace 10 with the number of rows you expect)
-# Initialize result_mle with the correct number of rows based on unique locations
-result_mle <- data.frame(
-  LOCATION = unique(ip$LOCATION),
-  b = NA, se_b = NA, p_value_b1 = NA, p_value_b2 = NA
-)
 # Performing the hypothesis tests and adding p-values to the dataframe
 
 calculate_p_value <- function(b_value, b_estimate, se) {
@@ -371,27 +364,112 @@ calculate_p_value <- function(b_value, b_estimate, se) {
   return(p_value)
 }
 
+
+
+```
+```{r}
+result_mle <- data.frame(
+  LOCATION = unique(ip$LOCATION),
+  b = NA, se_b = NA, p_value_b1 = NA, p_value_b2 = NA
+)
 # Loop through unique locations
-for (location_idx in 1:length(unique(ip$LOCATION))) {
-  location <- unique(ip$LOCATION)[location_idx]
-  # ... (rest of your existing code)
+for (location_idx in 1:length(result_mle$LOCATION)) {
+  location <- result_mle$LOCATION[location_idx]
 
+  # Subset the data for this location
+  data_subset <- ip[ip$LOCATION == location,]
+
+  # Check if the subset is empty or if the 'growthrate' column doesn't exist
+  if (nrow(data_subset) == 0 || !"growthrate" %in% names(data_subset)) {
+    next # Skip this iteration if data is not valid
+  }
+
+  # Fit the standard distribution
+  fit_standard_gen <- MASS::fitdistr(data_subset$growthrate, dlaplace_standard, start = list(mu = 0, a = 1))
   
-  # Extracting the standard error for b
-  result_mle$se_b <- sqrt(diag(vcov(fit_gen))["b"])
-  # Assume fit_gen is produced here, then calculate standard error and p-values
-  se_b <- sqrt(diag(vcov(fit_gen))["b"])
+  # Take m and a from the fit_standard_gen
+  m <- fit_standard_gen$estimate['mu']
+  a <- fit_standard_gen$estimate['a']
   
+   # Perform optimization with Hessian
+  result_bgen <- optim(
+    1, 
+    fn = function(b) objective_function_b(b, data_subset$growthrate, m, a), 
+    method = "L-BFGS-B", 
+    lower = 0.6, 
+    upper = 3.3,
+    hessian = TRUE  # Request the Hessian matrix
+  )
+  # Extract the estimate for b
+  b_estimates <- result_bgen$par
   # Now you can safely assign values to existing rows
-  result_mle$se_b[location_idx] <- se_b
-  result_mle$p_value_b1[location_idx] <- calculate_p_value(1, result_mle$b[location_idx], se_b)
-  result_mle$p_value_b2[location_idx] <- calculate_p_value(2, result_mle$b[location_idx], se_b)
-
+    result_mle$b[location_idx] <- b_estimates
+    result_mle$se_b[location_idx] <- se_b
+    result_mle$p_value_b1[location_idx] <- calculate_p_value(1, b_estimates, se_b)
+    result_mle$p_value_b2[location_idx] <- calculate_p_value(2, b_estimates, se_b)
 }
 
 # Remove row names
 row.names(result_mle) <- NULL
+
+# View the result_mle dataframe
+View(result_mle)
+
 ```
+```{r}
+# Initialize the Country_mle data frame before using it
+Country_mle <- data.frame(
+  Country = unique(ip$LOCATION),  # Rename LOCATION to Country
+  b = NA, 
+  m = NA, 
+  a = NA
+)
+
+# Loop through unique locations
+for (location_idx in 1:nrow(Country_mle)) {
+  country <- Country_mle$Country[location_idx]  # Use the renamed column
+  
+  # Subset the data for this country
+  data_subset <- ip[ip$LOCATION == country,]
+  
+  # Check if the subset is empty or if the 'growthrate' column doesn't exist
+  if (nrow(data_subset) == 0 || !"growthrate" %in% names(data_subset)) {
+    next # Skip this iteration if data is not valid
+  }
+  
+  # Fit the standard distribution
+  fit_standard_gen <- MASS::fitdistr(data_subset$growthrate, dlaplace_standard, start = list(mu = 0, a = 1))
+  
+  # Take m and a from the fit_standard_gen
+  m_estimate <- fit_standard_gen$estimate['mu']
+  a_estimate <- fit_standard_gen$estimate['a']
+  
+  # Optimization for b, given m and a
+  result_bgen <- optim(
+    par = 1, # Initial guess for the parameter b
+    fn = function(b) objective_function_b(b, data_subset$growthrate, m_estimate, a_estimate), 
+    method = "L-BFGS-B", 
+    lower = 0.6, 
+    upper = 3.3
+  )
+  
+  # Extract the estimate for b
+  b_estimate <- result_bgen$par
+  
+  # Assign the estimates to the Country_mle dataframe
+  Country_mle$m[location_idx] <- m_estimate
+  Country_mle$a[location_idx] <- a_estimate
+  Country_mle$b[location_idx] <- b_estimate
+}
+
+# Remove row names if necessary
+row.names(Country_mle) <- NULL
+
+# You can view the Country_mle dataframe to see the results
+View(Country_mle)
+
+```
+
 
 ```{r}
 
